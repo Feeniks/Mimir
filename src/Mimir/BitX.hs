@@ -1,0 +1,151 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings #-}
+
+module Mimir.BitX(
+    module Mimir.Std,
+    module Mimir.BitX.Types
+) where
+
+import Mimir.Types
+import Mimir.Std
+import Mimir.BitX.Types
+import Mimir.BitX.Instances
+
+import Control.Lens (view)
+import qualified Data.ByteString.Char8 as B
+import Data.Monoid
+import Data.Proxy
+import Network.HTTP.Conduit (urlEncodedBody)
+import Numeric (showFFloat)
+
+instance HasManager BitX where
+    getManager = view bxManager
+
+instance Exchange BitX where
+    type ExchangeM BitX = StdM BitX
+
+---
+--- Ticker
+---
+
+instance TickerP BitX where
+    type TickerT BitX = Ticker
+    ticker' _ = do
+        url <- marketURL "ticker"
+        req <- buildReq url "GET" noBody
+        httpJSON req
+
+---
+--- PriceHistory
+---
+
+instance PriceHistoryP BitX where
+    type PriceIntervalT BitX = PriceInterval
+    type PriceSampleT BitX = PriceSample
+    priceHistory' bx iv = do
+        let pairCode = view bxPairCode bx
+        let url = "https://bitx.co/ajax/1/candles?pair=" <> pairCode <> "&duration=" <> (show iv)
+        req <- buildReq url "GET" noBody
+        (PriceHistory px) <- httpJSON req
+        return px
+
+---
+--- OrderBook
+---
+
+instance OrderBookP BitX where
+    type OrderBookT BitX = OrderBook
+    orderBook' _ = do
+        url <- marketURL "orderbook"
+        req <- buildReq url "GET" noBody
+        httpJSON req
+
+---
+--- TradeHistory
+---
+
+instance TradeHistoryP BitX where
+    type TradeT BitX = Trade
+    tradeHistory' _ = do
+        url <- marketURL "trades"
+        req <- buildReq url "GET" noBody
+        (TradeHistory tx) <- httpJSON req
+        return tx
+
+---
+--- Order
+---
+
+instance OrderP BitX where
+    type OrderTypeT BitX = OrderType
+    type OrderT BitX = Order
+    type OrderResponseT BitX = OrderResponse
+    currentOrders' _ = do
+        bURL <- marketURL "listorders"
+        req <- buildReq (bURL <> "&state=PENDING") "GET" noBody
+        (Orders mox) <- httpJSON req
+        maybe (return []) return mox
+    placeLimitOrder' _ o = do
+        bURL <- viewStdM bxBaseURL
+        params <- mkLimitOrder o
+        req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "postorder") "POST" noBody
+        res <- httpJSON req
+        return res
+    placeMarketOrder' _ typ vol = do
+        bURL <- viewStdM bxBaseURL
+        params <- mkMarketOrder typ vol
+        req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "marketorder") "POST" noBody
+        httpJSON req
+    cancelOrder' _ o = do
+        bURL <- viewStdM bxBaseURL
+        req <- fmap (urlEncodedBody [("order_id", B.pack . view oID $ o)]) $ buildReq (bURL <> "stoporder") "POST" noBody
+        http' req
+
+---
+--- Balances
+---
+
+instance BalancesP BitX where
+    type BalancesT BitX = Balances
+    balances' _ = do
+        url <- marketURL "balance"
+        req <- buildReq url "GET" noBody
+        (Accounts ax) <- httpJSON req
+        toBalances ax
+
+---
+--- Utility
+---
+
+toBalances :: [Account] -> StdM BitX Balances
+toBalances ax = do
+    currencyCode <- viewStdM bxCurrencyCode
+    commodityCode <- viewStdM bxCommodityCode
+    let currency = sum . fmap (\a -> _acBalance a - _acReserved a) . filter ((==currencyCode) . view acAssetCode) $ ax
+    let commodity = sum . fmap (\a -> _acBalance a - _acReserved a) . filter ((==commodityCode) . view acAssetCode) $ ax
+    return $ Balances currency commodity
+
+marketURL :: String -> StdM BitX String
+marketURL endpoint = do
+    baseURL <- viewStdM bxBaseURL
+    pairCode <- viewStdM bxPairCode
+    let url = baseURL <> endpoint <> "?pair=" <> pairCode
+    return url
+
+mkLimitOrder :: Order -> StdM BitX [(B.ByteString, B.ByteString)]
+mkLimitOrder o = do
+    pairCode <- viewStdM bxPairCode
+    return [("pair", B.pack pairCode), ("type", B.pack . show . view oType $ o), ("volume", encNum . view oVolume $ o), ("price", encNum . view oUnitPrice $ o)]
+
+mkMarketOrder :: OrderType -> Double -> StdM BitX [(B.ByteString, B.ByteString)]
+mkMarketOrder typ vol = do
+    pairCode <- viewStdM bxPairCode
+    case typ of
+        BID -> return [("pair", B.pack pairCode), ("type", "BUY"), ("counter_volume", encNum vol)]
+        ASK -> return [("pair", B.pack pairCode), ("type", "SELL"), ("base_volume", encNum vol)]
+
+encNum :: Double -> B.ByteString
+encNum n = B.pack $ showFFloat (Just 6) n ""
+
+noBody :: Maybe ()
+noBody = Nothing
