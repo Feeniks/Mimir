@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Mimir, Mimir.Std
+  exposed-modules:     Mimir, Mimir.Types, Mimir.Std, Mimir.Std.Types, Mimir.Std.HTTP, Mimir.BitX, Mimir.BitX.Types, Mimir.BitX.Instances
   build-depends:       base >= 4.7 && < 5
                      , mtl >= 2.1.3.1
                      , time >= 1.4.2
