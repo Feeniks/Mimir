@@ -81,7 +81,7 @@ instance FromJSON Trade where
     parseJSON _ = mzero
 
 instance FromJSON Orders where
-    parseJSON (Object v) = Orders <$> v .: "orders"
+    parseJSON (Object v) = Orders <$> v .:? "orders"
     parseJSON _ = mzero
 
 rstr v k = (v .: k) >>= return . read

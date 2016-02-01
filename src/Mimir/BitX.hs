@@ -14,7 +14,6 @@ import Mimir.BitX.Instances
 import Control.Lens (view)
 import qualified Data.ByteString.Char8 as B
 import Data.Monoid
-import Data.Proxy
 import Network.HTTP.Conduit (urlEncodedBody)
 import Numeric (showFFloat)
 
