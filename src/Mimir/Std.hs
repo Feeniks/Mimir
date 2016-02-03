@@ -27,11 +27,8 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Either
 import Data.Proxy
 
-instance HasStd StdExchange where
-    getStd (StdExchange e) = e
-
-runStdM :: (Exchange e, ExchangeM e ~ StdM e, HasStd s) => StdM e a -> s e -> IO (Either StdErr a)
-runStdM act s = runEitherT $ runReaderT act (getStd s)
+runStdM :: (Exchange e, ExchangeM e ~ StdM e) => StdM e a -> e -> IO (Either StdErr a)
+runStdM act = runEitherT . runReaderT act
 
 ticker :: (Exchange e, ExchangeM e ~ StdM e, TickerP e) => StdM e (TickerT e)
 ticker = ticker' =<< ask

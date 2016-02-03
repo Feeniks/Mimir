@@ -13,13 +13,8 @@ import Network.HTTP.Conduit (Manager)
 
 type StdM s = ReaderT s (EitherT StdErr IO)
 
-class HasStd s where
-    getStd :: (Exchange e, ExchangeM e ~ StdM e) => s e -> e
-
 class HasManager e where
     getManager :: e -> Manager
-
-data StdExchange e = StdExchange e
 
 data StdErr = StdErr String deriving Show
 
