@@ -99,14 +99,15 @@ instance FromJSON OrderResponse where
     parseJSON (Object v) = OrderResponse <$> v .: "order_id"
     parseJSON _ = mzero
 
-instance FromJSON Balances where
+instance FromJSON OKBalances where
     parseJSON (Object v) = do
         vinf <- v .: "info"
         vfunds <- vinf .: "funds"
         vfree <- vfunds .: "free"
-        curr <- rstr vfree "usd"
-        comm <- rstr vfree "btc"
-        return $ Balances curr comm
+        usd <- rstr vfree "usd"
+        btc <- rstr vfree "btc"
+        ltc <- rstr vfree "ltc"
+        return $ OKBalances [("usd", usd), ("btc", btc), ("ltc", ltc)]
     parseJSON _ = mzero
 
 rstr v k = (v .: k) >>= return . read

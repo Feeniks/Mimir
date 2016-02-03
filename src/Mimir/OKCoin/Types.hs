@@ -12,7 +12,9 @@ data OKCoin = OKCoin {
     _ocBaseURL :: String,
     _ocApiKey :: String,
     _ocApiSecret :: String,
-    _ocSymbol :: String
+    _ocSymbol :: String,
+    _ocCurrencySymbol :: String,
+    _ocCommoditySymbol :: String
 }
 
 data OKPriceInterval =
@@ -24,5 +26,7 @@ data OKPriceInterval =
 data PriceHistory = PriceHistory [PriceSample] deriving Show
 
 data Orders = Orders [Order] deriving Show
+
+data OKBalances = OKBalances [(String, Double)] deriving Show
 
 makeLenses ''OKCoin

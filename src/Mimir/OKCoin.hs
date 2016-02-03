@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Mimir.OKCoin(
     module Mimir.Std,
@@ -13,7 +14,7 @@ import Mimir.Std
 import Mimir.OKCoin.Types
 import Mimir.OKCoin.Instances
 
-import Control.Lens (view, set, at, _Just)
+import Control.Lens (Lens, view, set, at, _Just)
 import Control.Monad.Trans
 import Crypto.Hash.MD5 (hash)
 import Data.Aeson (FromJSON, ToJSON, encode)
@@ -76,7 +77,17 @@ instance TradeHistoryP OKCoin where
 
 instance BalancesP OKCoin where
     type BalancesT OKCoin = Balances
-    balances' _ = apiReqAuth "userinfo.do" []
+    balances' _ = do
+        (OKBalances bx) <- apiReqAuth "userinfo.do" []
+        cur <- getBalance ocCurrencySymbol bx
+        com <- getBalance ocCommoditySymbol bx
+        return $ Balances cur com
+
+getBalance :: Lens OKCoin OKCoin String String -> [(String, Double)] -> StdM OKCoin Double
+getBalance lens bx = do
+    csym <- viewStdM lens
+    let mv = M.lookup csym $ M.fromList bx
+    maybe (return 0.0) (return) mv
 
 ---
 --- Order
