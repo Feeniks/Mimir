@@ -22,15 +22,15 @@ data Ticker = Ticker {
     _tiLast :: Double
 } deriving Show
 
-type PriceInterval = Int
+type CandleInterval = Int
 
-data PriceSample = PriceSample {
-    _psTimeUTC :: Int,
-    _psOpen :: Double,
-    _psClose :: Double,
-    _psHigh :: Double,
-    _psLow :: Double,
-    _psVolume :: Double
+data Candle = Candle {
+    _caTimeUTC :: Int,
+    _caOpen :: Double,
+    _caClose :: Double,
+    _caHigh :: Double,
+    _caLow :: Double,
+    _caVolume :: Double
 } deriving Show
 
 data OrderBook = OrderBook {
@@ -68,7 +68,7 @@ data Balances = Balances {
 } deriving Show
 
 makeLenses ''Ticker
-makeLenses ''PriceSample
+makeLenses ''Candle
 makeLenses ''OrderBook
 makeLenses ''OrderBookEntry
 makeLenses ''Trade

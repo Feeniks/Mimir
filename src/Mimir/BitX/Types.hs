@@ -26,7 +26,7 @@ data Account = Account {
 
 data Accounts = Accounts [Account] deriving Show
 
-data PriceHistory = PriceHistory [PriceSample] deriving Show
+data PriceHistory = PriceHistory [Candle] deriving Show
 
 data TradeHistory = TradeHistory [Trade] deriving Show
 

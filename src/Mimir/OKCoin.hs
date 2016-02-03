@@ -48,12 +48,12 @@ instance TickerP OKCoin where
 --- PriceHistory
 ---
 
-instance PriceHistoryP OKCoin where
-    type PriceIntervalT OKCoin = OKPriceInterval
-    type PriceSampleT OKCoin = PriceSample
-    priceHistory' _ iv = do
-        (PriceHistory sx) <- apiReq "kline.do" [("type", show iv), ("size", "100")]
-        return sx
+instance CandlesP OKCoin where
+    type CandleIntervalT OKCoin = OKCandleInterval
+    type CandleT OKCoin = Candle
+    candles' _ iv = do
+        (PriceHistory cx) <- apiReq "kline.do" [("type", show iv), ("size", "100")]
+        return cx
 
 ---
 --- OrderBook
@@ -95,6 +95,7 @@ getBalance lens bx = do
 
 instance OrderP OKCoin where
     type OrderTypeT OKCoin = OrderType
+    type OrderAmountT OKCoin = Double
     type OrderT OKCoin = Order
     type OrderResponseT OKCoin = OrderResponse
     currentOrders' _ = do

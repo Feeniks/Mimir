@@ -22,14 +22,14 @@ instance FromJSON PriceHistory where
     parseJSON (Object v) = PriceHistory <$> v .: "candles"
     parseJSON _ = mzero
 
-instance FromJSON PriceSample where
+instance FromJSON Candle where
     parseJSON (Object v) =
-        PriceSample <$> v .: "timestamp"
-                    <*> rstr v "open"
-                    <*> rstr v "close"
-                    <*> rstr v "high"
-                    <*> rstr v "low"
-                    <*> rstr v "volume"
+        Candle  <$> v .: "timestamp"
+                <*> rstr v "open"
+                <*> rstr v "close"
+                <*> rstr v "high"
+                <*> rstr v "low"
+                <*> rstr v "volume"
     parseJSON _ = mzero
 
 instance FromJSON OrderBook where

@@ -14,7 +14,7 @@ import Data.Maybe (catMaybes)
 import Data.Vector ((!))
 import qualified Data.Vector as V
 
-instance Show OKPriceInterval where
+instance Show OKCandleInterval where
     show M1 = "1min"
     show M3 = "3min"
     show M5 = "5min"
@@ -40,9 +40,9 @@ instance FromJSON Ticker where
     parseJSON _ = mzero
 
 instance FromJSON PriceHistory where
-    parseJSON (Array sx) = PriceHistory <$> (mapM toSample $ V.toList sx)
+    parseJSON (Array sx) = PriceHistory <$> (mapM toCandle $ V.toList sx)
         where
-        toSample (Array vx) = case V.length vx of
+        toCandle (Array vx) = case V.length vx of
             6 -> do
                 let (Number timeMS) = vx ! 0
                 let (Number open) = vx ! 1
@@ -50,7 +50,7 @@ instance FromJSON PriceHistory where
                 let (Number low) = vx ! 3
                 let (Number close) = vx ! 4
                 let (Number volume) = vx ! 5
-                return $ PriceSample (truncate $ timeMS / 1000) (realToFrac open) (realToFrac close) (realToFrac high) (realToFrac low) (realToFrac volume)
+                return $ Candle (truncate $ timeMS / 1000) (realToFrac open) (realToFrac close) (realToFrac high) (realToFrac low) (realToFrac volume)
             _ -> mzero
     parseJSON _ = mzero
 

@@ -6,7 +6,7 @@ module Mimir.Std(
     runStdM,
     viewStdM,
     ticker,
-    priceHistory,
+    candles,
     orderBook,
     tradeHistory,
     currentOrders,
@@ -32,8 +32,8 @@ runStdM act = runEitherT . runReaderT act
 ticker :: (Exchange e, ExchangeM e ~ StdM e, TickerP e) => StdM e (TickerT e)
 ticker = ticker' =<< ask
 
-priceHistory :: (Exchange e, ExchangeM e ~ StdM e, PriceHistoryP e) => PriceIntervalT e -> StdM e [PriceSampleT e]
-priceHistory iv = flip priceHistory' iv =<< ask
+candles :: (Exchange e, ExchangeM e ~ StdM e, CandlesP e) => CandleIntervalT e -> StdM e [CandleT e]
+candles iv = flip candles' iv =<< ask
 
 orderBook :: (Exchange e, ExchangeM e ~ StdM e, OrderBookP e) => StdM e (OrderBookT e)
 orderBook = orderBook' =<< ask
@@ -47,7 +47,7 @@ currentOrders = currentOrders' =<< ask
 placeLimitOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderT e -> StdM e (OrderResponseT e)
 placeLimitOrder o = flip placeLimitOrder' o =<< ask
 
-placeMarketOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderTypeT e -> Double -> StdM e (OrderResponseT e)
+placeMarketOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderTypeT e -> OrderAmountT e -> StdM e (OrderResponseT e)
 placeMarketOrder typ vol = ask >>= \e -> placeMarketOrder' e typ vol
 
 cancelOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderT e -> StdM e ()

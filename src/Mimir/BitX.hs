@@ -44,15 +44,15 @@ instance TickerP BitX where
 --- PriceHistory
 ---
 
-instance PriceHistoryP BitX where
-    type PriceIntervalT BitX = PriceInterval
-    type PriceSampleT BitX = PriceSample
-    priceHistory' bx iv = do
+instance CandlesP BitX where
+    type CandleIntervalT BitX = CandleInterval
+    type CandleT BitX = Candle
+    candles' bx iv = do
         let pairCode = view bxPairCode bx
         let url = "https://bitx.co/ajax/1/candles?pair=" <> pairCode <> "&duration=" <> (show iv)
         req <- buildReq url "GET" [] noBody
-        (PriceHistory px) <- httpJSON req
-        return px
+        (PriceHistory cx) <- httpJSON req
+        return cx
 
 ---
 --- OrderBook
@@ -83,6 +83,7 @@ instance TradeHistoryP BitX where
 
 instance OrderP BitX where
     type OrderTypeT BitX = OrderType
+    type OrderAmountT BitX = Double
     type OrderT BitX = Order
     type OrderResponseT BitX = OrderResponse
     currentOrders' _ = do
