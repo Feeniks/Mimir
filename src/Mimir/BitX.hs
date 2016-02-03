@@ -41,7 +41,7 @@ instance TickerP BitX where
         httpJSON req
 
 ---
---- PriceHistory
+--- Candles
 ---
 
 instance CandlesP BitX where

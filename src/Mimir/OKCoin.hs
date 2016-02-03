@@ -45,7 +45,7 @@ instance TickerP OKCoin where
     ticker' _ = apiReq "ticker.do" []
 
 ---
---- PriceHistory
+--- Candles
 ---
 
 instance CandlesP OKCoin where

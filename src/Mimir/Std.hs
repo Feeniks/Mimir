@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Mimir.Std(
     module Mimir.Std.Types,
@@ -26,8 +27,11 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Either
 import Data.Proxy
 
-runStdM :: StdM s a -> s -> IO (Either StdErr a)
-runStdM act = runEitherT . runReaderT act
+instance HasStd StdExchange where
+    getStd (StdExchange e) = e
+
+runStdM :: (Exchange e, ExchangeM e ~ StdM e, HasStd s) => StdM e a -> s e -> IO (Either StdErr a)
+runStdM act s = runEitherT $ runReaderT act (getStd s)
 
 ticker :: (Exchange e, ExchangeM e ~ StdM e, TickerP e) => StdM e (TickerT e)
 ticker = ticker' =<< ask
