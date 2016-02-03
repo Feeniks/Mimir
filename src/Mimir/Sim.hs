@@ -16,7 +16,7 @@ import Mimir.Types
 import Mimir.Std
 import Mimir.Sim.Types
 
-import Control.Concurrent (forkIO, killThread)
+import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar
 import Control.Lens (Lens, over, set, view)
@@ -29,8 +29,8 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 --- Create a Sim
 ---
 
-createSim :: Exchange e => Int -> Double -> Double -> e -> IO (Sim e)
-createSim cycleDelayMS currencyBalance commodityBalance e = do
+createSim :: (Exchange e, MonadIO (ExchangeM e)) => Int -> Double -> Double -> e -> ((ExchangeM e) a -> e -> IO a) -> IO (Sim e)
+createSim cycleDelayMS currencyBalance commodityBalance e runE = do
     idg <- fmap round getPOSIXTime
     let stat = SimState {
         _ssIDGen = idg,
@@ -40,7 +40,7 @@ createSim cycleDelayMS currencyBalance commodityBalance e = do
         _ssPendingMarketOrders = []
     }
     tstat <- atomically $ newTVar stat
-    tid <- forkIO $ runSim cycleDelayMS tstat
+    tid <- forkIO $ runSim cycleDelayMS tstat e runE
     return $ Sim {
         _siExchange = e,
         _siManagerThreadID = tid,
@@ -58,8 +58,10 @@ destroySim = killThread . view siManagerThreadID
 --- Run a Sim
 ---
 
-runSim :: Int -> TVar SimState -> IO ()
-runSim cycleDelayMS tstat = forever $ undefined
+runSim :: (Exchange e, MonadIO (ExchangeM e)) => Int -> TVar SimState -> e -> ((ExchangeM e) a -> e -> IO a) -> IO ()
+runSim cycleDelayMS tstat e runE = forever $ do
+    --TODO: impl
+    threadDelay $ cycleDelayMS * 1000
 
 ---
 --- Utility
