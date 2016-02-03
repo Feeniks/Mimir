@@ -21,7 +21,7 @@ library
                      , Mimir.Std.Types
                      , Mimir.Std.HTTP
                      , Mimir.Std.Func
-                     , Mimir.Test
+                     , Mimir.Sim
                      , Mimir.BitX
                      , Mimir.BitX.Types
                      , Mimir.BitX.Instances
