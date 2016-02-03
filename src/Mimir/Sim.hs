@@ -90,7 +90,11 @@ instance (Exchange e, MonadIO (ExchangeM e), MonadError String (ExchangeM e), Or
         let plo = toPLO $ set oID nid o
         modifyState (over ssPendingLimitOrders (++[plo])) sim
         return $ OrderResponse nid
-    placeMarketOrder' _ typ amount = undefined
+    placeMarketOrder' sim typ amount = do
+        nid <- operateState newID sim
+        let pmo = PendingMarketOrder typ nid amount
+        modifyState (over ssPendingMarketOrders (++[pmo])) sim
+        return $ OrderResponse nid
     cancelOrder' sim o = modifyState (cancelO $ view oID o) sim
 
 toOrder :: PendingLimitOrder -> Order

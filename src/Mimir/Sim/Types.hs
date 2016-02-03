@@ -18,7 +18,8 @@ data SimState = SimState {
     _ssIDGen :: Int,
     _ssCurrencyBalance :: Double,
     _ssCommodityBalance :: Double,
-    _ssPendingLimitOrders :: [PendingLimitOrder]
+    _ssPendingLimitOrders :: [PendingLimitOrder],
+    _ssPendingMarketOrders :: [PendingMarketOrder]
 }
 
 data PendingLimitOrder = PendingLimitOrder {
@@ -31,6 +32,13 @@ data PendingLimitOrder = PendingLimitOrder {
     _ploOutstanding :: Double
 }
 
+data PendingMarketOrder = PendingMarketOrder {
+    _pmoType :: OrderType,
+    _pmoID :: String,
+    _pmoAmount :: Double
+}
+
 makeLenses ''Sim
 makeLenses ''SimState
 makeLenses ''PendingLimitOrder
+makeLenses ''PendingMarketOrder
