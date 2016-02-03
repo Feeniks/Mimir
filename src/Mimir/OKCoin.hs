@@ -107,12 +107,12 @@ instance OrderP OKCoin where
         where
         otyp BID = "buy"
         otyp ASK = "sell"
-    placeMarketOrder' _ BID vol = do
+    placeMarketOrder' _ BID amount = do
         sym <- viewStdM ocSymbol
-        apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("price", encNum vol), ("amount", encNum vol)]
-    placeMarketOrder' _ ASK vol = do
+        apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("price", encNum amount)]
+    placeMarketOrder' _ ASK amount = do
         sym <- viewStdM ocSymbol
-        apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("price", encNum vol), ("amount", encNum vol)]
+        apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("amount", encNum amount)]
     cancelOrder' _ o = do
         sym <- viewStdM ocSymbol
         apiReqAuth "cancel_order.do" [("symbol", sym), ("order_id", view oID o)]

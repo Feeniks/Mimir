@@ -96,9 +96,9 @@ instance OrderP BitX where
         req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "postorder") "POST" [] noBody
         res <- httpJSON req
         return res
-    placeMarketOrder' _ typ vol = do
+    placeMarketOrder' _ typ amount = do
         bURL <- viewStdM bxBaseURL
-        params <- mkMarketOrder typ vol
+        params <- mkMarketOrder typ amount
         req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "marketorder") "POST" [] noBody
         httpJSON req
     cancelOrder' _ o = do
@@ -143,11 +143,11 @@ mkLimitOrder o = do
     return [("pair", B.pack pairCode), ("type", B.pack . show . view oType $ o), ("volume", encNum . view oVolume $ o), ("price", encNum . view oUnitPrice $ o)]
 
 mkMarketOrder :: OrderType -> Double -> StdM BitX [(B.ByteString, B.ByteString)]
-mkMarketOrder typ vol = do
+mkMarketOrder typ amount = do
     pairCode <- viewStdM bxPairCode
     case typ of
-        BID -> return [("pair", B.pack pairCode), ("type", "BUY"), ("counter_volume", encNum vol)]
-        ASK -> return [("pair", B.pack pairCode), ("type", "SELL"), ("base_volume", encNum vol)]
+        BID -> return [("pair", B.pack pairCode), ("type", "BUY"), ("counter_volume", encNum amount)]
+        ASK -> return [("pair", B.pack pairCode), ("type", "SELL"), ("base_volume", encNum amount)]
 
 encNum :: Double -> B.ByteString
 encNum n = B.pack $ showFFloat (Just 6) n ""
