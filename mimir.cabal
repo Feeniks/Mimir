@@ -22,6 +22,7 @@ library
                      , Mimir.Std.HTTP
                      , Mimir.Std.Func
                      , Mimir.Sim
+                     , Mimir.Sim.Types
                      , Mimir.BitX
                      , Mimir.BitX.Types
                      , Mimir.BitX.Instances
@@ -30,6 +31,7 @@ library
                      , Mimir.OKCoin.Instances
   build-depends:       base >= 4.7 && < 5
                      , mtl >= 2.1.3.1
+                     , stm >= 2.4.4.1
                      , time >= 1.4.2
                      , bytestring >= 0.10.4.0
                      , text >= 1.2.0
