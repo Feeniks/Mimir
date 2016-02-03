@@ -20,7 +20,7 @@ import Data.Aeson (FromJSON, ToJSON, encode)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.ByteString.Base16 as B16
-import Data.Char (toUpper)
+import Data.Char (toLower, toUpper)
 import Data.List (intersperse, sortOn)
 import qualified Data.Map as M
 import Data.Monoid
@@ -79,6 +79,34 @@ instance BalancesP OKCoin where
     balances' _ = apiReqAuth "userinfo.do" []
 
 ---
+--- Order
+---
+
+instance OrderP OKCoin where
+    type OrderTypeT OKCoin = OrderType
+    type OrderT OKCoin = Order
+    type OrderResponseT OKCoin = OrderResponse
+    currentOrders' _ = do
+        sym <- viewStdM ocSymbol
+        (Orders ox) <- apiReqAuth "order_history.do" [("symbol", sym), ("status", "0"), ("current_page", "0"), ("page_length", "200")]
+        return ox
+    placeLimitOrder' _ o = do
+        sym <- viewStdM ocSymbol
+        apiReqAuth "trade.do" [("symbol", sym), ("type", otyp $ view oType o), ("price", encNum . view oUnitPrice $ o), ("amount", encNum . view oVolume $ o)]
+        where
+        otyp BID = "buy"
+        otyp ASK = "sell"
+    placeMarketOrder' _ BID vol = do
+        sym <- viewStdM ocSymbol
+        apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("price", encNum vol), ("amount", encNum vol)]
+    placeMarketOrder' _ ASK vol = do
+        sym <- viewStdM ocSymbol
+        apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("price", encNum vol), ("amount", encNum vol)]
+    cancelOrder' _ o = do
+        sym <- viewStdM ocSymbol
+        apiReqAuth "cancel_order.do" [("symbol", sym), ("order_id", view oID o)]
+
+---
 --- Utility
 ---
 
@@ -95,12 +123,10 @@ apiReq endpoint params = do
 apiReqAuth :: FromJSON r => String -> [(String, String)] -> StdM OKCoin r
 apiReqAuth endpoint params = do
     baseURL <- viewStdM ocBaseURL
-    sym <- viewStdM ocSymbol
     key <- viewStdM ocApiKey
     let px = sortOn fst . M.toList . set (at "api_key") (Just key) . M.fromList $ params
     sig <- reqSig px
     let body = mconcat . intersperse "&" . fmap toParam $ px ++ [("sign", sig)]
-    liftIO . putStrLn $ body
     req <- buildReq (baseURL ++ endpoint) "POST" [("Content-Type", "application/x-www-form-urlencoded")] (Just body)
     httpJSON req
 
@@ -120,3 +146,6 @@ toFormParam (k, v) = (B.pack k, B.pack v)
 
 noBody :: Maybe String
 noBody = Nothing
+
+encNum :: Double -> String
+encNum n = showFFloat (Just 6) n ""
