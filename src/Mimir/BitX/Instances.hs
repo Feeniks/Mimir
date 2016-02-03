@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Mimir.BitX.Instances where
+module Mimir.BitX.Instances() where
 
 import Mimir.Std.Types
 import Mimir.BitX.Types

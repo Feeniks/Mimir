@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Mimir.Std.HTTP(
+    Body(..),
     http,
     http',
     httpJSON,
@@ -20,6 +21,10 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as BL
 import Network.HTTP.Client (HttpException(..))
 import Network.HTTP.Conduit hiding (http)
+import Network.HTTP.Types (Header)
+
+class Body b where
+    encodeBody :: b -> BL.ByteString
 
 http :: HasManager e => Request -> StdM e BL.ByteString
 http r = ask >>= return . getManager >>= safeHTTP . httpLbs r >>= return . responseBody
@@ -35,11 +40,11 @@ asJSON b = case (decode b) of
     Nothing -> lift . left . StdErr $ "Could not parse " ++ BL.unpack b
     Just r -> return r
 
-buildReq :: ToJSON b => String -> B.ByteString -> Maybe b -> StdM e Request
-buildReq url mthd mb = do
+buildReq :: Body b => String -> B.ByteString -> [Header] -> Maybe b -> StdM e Request
+buildReq url mthd headers mb = do
     breq <- parseUrl url
-    let req = breq { method = mthd }
-    maybe (return req) (\b -> return $ req { requestBody = RequestBodyLBS (encode b) }) mb
+    let req = breq { method = mthd, requestHeaders = (requestHeaders breq) ++ headers }
+    maybe (return req) (\b -> return $ req { requestBody = RequestBodyLBS (encodeBody b) }) mb
 
 safeHTTP :: IO a -> StdM e a
 safeHTTP act = lift . EitherT $ handle handleHTTP (act >>= return . Right)

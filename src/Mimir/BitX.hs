@@ -1,4 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Mimir.BitX(
@@ -13,9 +15,13 @@ import Mimir.BitX.Instances
 
 import Control.Lens (view)
 import qualified Data.ByteString.Char8 as B
+import Data.Aeson (ToJSON, encode)
 import Data.Monoid
 import Network.HTTP.Conduit (urlEncodedBody)
 import Numeric (showFFloat)
+
+instance ToJSON b => Body b where
+    encodeBody = encode
 
 instance HasManager BitX where
     getManager = view bxManager
@@ -31,7 +37,7 @@ instance TickerP BitX where
     type TickerT BitX = Ticker
     ticker' _ = do
         url <- marketURL "ticker"
-        req <- buildReq url "GET" noBody
+        req <- buildReq url "GET" [] noBody
         httpJSON req
 
 ---
@@ -44,7 +50,7 @@ instance PriceHistoryP BitX where
     priceHistory' bx iv = do
         let pairCode = view bxPairCode bx
         let url = "https://bitx.co/ajax/1/candles?pair=" <> pairCode <> "&duration=" <> (show iv)
-        req <- buildReq url "GET" noBody
+        req <- buildReq url "GET" [] noBody
         (PriceHistory px) <- httpJSON req
         return px
 
@@ -56,7 +62,7 @@ instance OrderBookP BitX where
     type OrderBookT BitX = OrderBook
     orderBook' _ = do
         url <- marketURL "orderbook"
-        req <- buildReq url "GET" noBody
+        req <- buildReq url "GET" [] noBody
         httpJSON req
 
 ---
@@ -67,7 +73,7 @@ instance TradeHistoryP BitX where
     type TradeT BitX = Trade
     tradeHistory' _ = do
         url <- marketURL "trades"
-        req <- buildReq url "GET" noBody
+        req <- buildReq url "GET" [] noBody
         (TradeHistory tx) <- httpJSON req
         return tx
 
@@ -81,23 +87,23 @@ instance OrderP BitX where
     type OrderResponseT BitX = OrderResponse
     currentOrders' _ = do
         bURL <- marketURL "listorders"
-        req <- buildReq (bURL <> "&state=PENDING") "GET" noBody
+        req <- buildReq (bURL <> "&state=PENDING") "GET" [] noBody
         (Orders mox) <- httpJSON req
         maybe (return []) return mox
     placeLimitOrder' _ o = do
         bURL <- viewStdM bxBaseURL
         params <- mkLimitOrder o
-        req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "postorder") "POST" noBody
+        req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "postorder") "POST" [] noBody
         res <- httpJSON req
         return res
     placeMarketOrder' _ typ vol = do
         bURL <- viewStdM bxBaseURL
         params <- mkMarketOrder typ vol
-        req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "marketorder") "POST" noBody
+        req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "marketorder") "POST" [] noBody
         httpJSON req
     cancelOrder' _ o = do
         bURL <- viewStdM bxBaseURL
-        req <- fmap (urlEncodedBody [("order_id", B.pack . view oID $ o)]) $ buildReq (bURL <> "stoporder") "POST" noBody
+        req <- fmap (urlEncodedBody [("order_id", B.pack . view oID $ o)]) $ buildReq (bURL <> "stoporder") "POST" [] noBody
         http' req
 
 ---
@@ -108,7 +114,7 @@ instance BalancesP BitX where
     type BalancesT BitX = Balances
     balances' _ = do
         url <- marketURL "balance"
-        req <- buildReq url "GET" noBody
+        req <- buildReq url "GET" [] noBody
         (Accounts ax) <- httpJSON req
         toBalances ax
 

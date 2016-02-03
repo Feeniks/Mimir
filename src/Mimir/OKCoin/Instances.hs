@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Mimir.OKCoin.Instances where
+module Mimir.OKCoin.Instances() where
 
 import Mimir.OKCoin.Types
 import Mimir.Std.Types
@@ -13,6 +13,21 @@ import Data.Char (toUpper)
 import Data.Maybe (catMaybes)
 import Data.Vector ((!))
 import qualified Data.Vector as V
+
+instance Show OKPriceInterval where
+    show M1 = "1min"
+    show M3 = "3min"
+    show M5 = "5min"
+    show M15 = "15min"
+    show M30 = "30min"
+    show H1 = "1hour"
+    show H2 = "2hour"
+    show H4 = "4hour"
+    show H6 = "6hour"
+    show H12 = "12hour"
+    show D1 = "1day"
+    show D3 = "3day"
+    show W1 = "1week"
 
 instance FromJSON Ticker where
     parseJSON (Object v) = do
@@ -50,6 +65,14 @@ instance FromJSON OrderBookEntry where
             let (Number vol) = vx ! 1
             return $ OrderBookEntry (realToFrac vol) (realToFrac price)
         _ -> mzero
+    parseJSON _ = mzero
+
+instance FromJSON Trade where
+    parseJSON (Object v) = do
+        ts <- fmap Just (v .: "date_ms")
+        price <- rstr v "price"
+        volume <- rstr v "amount"
+        return $ Trade ts price volume
     parseJSON _ = mzero
 
 instance FromJSON Orders where
