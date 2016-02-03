@@ -3,25 +3,73 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Mimir.Sim(
     module Mimir.Std,
-    Sim
+    Sim,
+    createSim,
+    destroySim
 ) where
 
 import Mimir.Types
 import Mimir.Std
 import Mimir.Sim.Types
 
+import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar
-import Control.Lens (over, set, view)
+import Control.Lens (Lens, over, set, view)
+import Control.Monad
 import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Trans
 import Data.Time.Clock.POSIX (getPOSIXTime)
 
+---
+--- Create a Sim
+---
+
+createSim :: Exchange e => Int -> Double -> Double -> e -> IO (Sim e)
+createSim cycleDelayMS currencyBalance commodityBalance e = do
+    idg <- fmap round getPOSIXTime
+    let stat = SimState {
+        _ssIDGen = idg,
+        _ssCurrencyBalance = currencyBalance,
+        _ssCommodityBalance = commodityBalance,
+        _ssPendingLimitOrders = [],
+        _ssPendingMarketOrders = []
+    }
+    tstat <- atomically $ newTVar stat
+    tid <- forkIO $ runSim cycleDelayMS tstat
+    return $ Sim {
+        _siExchange = e,
+        _siManagerThreadID = tid,
+        _siState = tstat
+    }
+
+---
+--- Destroy a Sim
+---
+
+destroySim :: Sim e -> IO ()
+destroySim = killThread . view siManagerThreadID
+
+---
+--- Run a Sim
+---
+
+runSim :: Int -> TVar SimState -> IO ()
+runSim cycleDelayMS tstat = forever $ undefined
+
+---
+--- Utility
+---
+
 readState :: (Exchange e, MonadIO (ExchangeM e)) => Sim e -> (ExchangeM e) SimState
 readState = liftIO . atomically . readTVar . view siState
+
+viewState :: (Exchange e, MonadIO (ExchangeM e)) => Lens SimState SimState r r -> Sim e -> (ExchangeM e) r
+viewState lens = liftIO . atomically . fmap (view lens) . readTVar . view siState
 
 operateState :: (Exchange e, MonadIO (ExchangeM e)) => (SimState -> (a, SimState)) -> Sim e -> (ExchangeM e) a
 operateState f sim = liftIO . atomically $ do
@@ -86,11 +134,15 @@ instance (Exchange e, MonadIO (ExchangeM e), MonadError String (ExchangeM e), Or
         let plos = view ssPendingLimitOrders stat
         return $ fmap toOrder plos
     placeLimitOrder' sim o = do
+        case (view oType o) of
+            BID -> guardOrderBalance BID (view oVolume o * view oUnitPrice o) sim
+            ASK -> guardOrderBalance ASK (view oVolume o) sim
         nid <- operateState newID sim
         let plo = toPLO $ set oID nid o
         modifyState (over ssPendingLimitOrders (++[plo])) sim
         return $ OrderResponse nid
     placeMarketOrder' sim typ amount = do
+        guardOrderBalance typ amount sim
         nid <- operateState newID sim
         let pmo = PendingMarketOrder typ nid amount
         modifyState (over ssPendingMarketOrders (++[pmo])) sim
@@ -119,6 +171,14 @@ toPLO o =
         _ploUnitPrice = view oUnitPrice o,
         _ploOutstanding = view oVolume o
     }
+
+guardOrderBalance :: (Exchange e, MonadIO (ExchangeM e), MonadError String (ExchangeM e), OrderP e, OrderTypeT e ~ OrderType, OrderAmountT e ~ Double) => OrderType -> Double -> Sim e -> (ExchangeM e) ()
+guardOrderBalance BID amount sim = do
+    curBal <- viewState ssCurrencyBalance sim
+    when (curBal < amount) $ throwError "Currency balance is too low to place order"
+guardOrderBalance ASK amount sim = do
+    comBal <- viewState ssCommodityBalance sim
+    when (comBal < amount) $ throwError "Commodity balance is too low to place order"
 
 cancelO :: String -> SimState -> SimState
 cancelO oid stat = set ssPendingLimitOrders plos stat
