@@ -1,5 +1,5 @@
 name:                mimir
-version:             0.2.0
+version:             0.2.1
 synopsis:            Bitcoin trading library
 description:         Bitcoin trading library
 homepage:            http://github.com/feeniks/mimir#readme
@@ -20,6 +20,7 @@ library
                      , Mimir.Std
                      , Mimir.Std.Types
                      , Mimir.Std.HTTP
+                     , Mimir.Std.Func
                      , Mimir.BitX
                      , Mimir.BitX.Types
                      , Mimir.BitX.Instances
