@@ -18,6 +18,8 @@ data SimState = SimState {
     _ssIDGen :: Int,
     _ssCurrencyBalance :: Double,
     _ssCommodityBalance :: Double,
+    _ssCurrencyReserved :: Double,
+    _ssCommodityReserved :: Double,
     _ssPendingLimitOrders :: [PendingLimitOrder],
     _ssPendingMarketOrders :: [PendingMarketOrder]
 }

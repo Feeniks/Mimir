@@ -19,7 +19,7 @@ import Mimir.Sim.Types
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar
-import Control.Lens (Lens, over, set, view)
+import Control.Lens (Lens, over, set, view, (&), (.~), (%~))
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Either (left)
@@ -36,6 +36,8 @@ createSim cycleDelayMS currencyBalance commodityBalance e = do
         _ssIDGen = idg,
         _ssCurrencyBalance = currencyBalance,
         _ssCommodityBalance = commodityBalance,
+        _ssCurrencyReserved = 0,
+        _ssCommodityReserved = 0,
         _ssPendingLimitOrders = [],
         _ssPendingMarketOrders = []
     }
@@ -149,22 +151,52 @@ instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso O
         return . fmap isoF $ fmap toOrder plos
     placeLimitOrder' sim eo = do
         let o = isoG eo
-        case (view oType o) of
-            BID -> guardOrderBalance BID (view oVolume o * view oUnitPrice o) sim
-            ASK -> guardOrderBalance ASK (view oVolume o) sim
         nid <- operateState newID sim
         let plo = toPLO $ set oID nid o
-        modifyState (over ssPendingLimitOrders (++[plo])) sim
-        return . isoF $ OrderResponse nid
+        ok <- operateState (addPLO plo) sim
+        case ok of
+            True ->  return . isoF $ OrderResponse nid
+            False -> lift . left $ StdErr "Insufficient balance for this trade"
     placeMarketOrder' sim etyp eamount = do
         let typ = isoG etyp
         let amount = isoG eamount
-        guardOrderBalance typ amount sim
         nid <- operateState newID sim
         let pmo = PendingMarketOrder typ nid amount
-        modifyState (over ssPendingMarketOrders (++[pmo])) sim
-        return . isoF $ OrderResponse nid
+        ok <- operateState (addPMO pmo) sim
+        case ok of
+            True ->  return . isoF $ OrderResponse nid
+            False -> lift . left $ StdErr "Insufficient balance for this trade"
     cancelOrder' sim eo = modifyState (cancelO . view oID $ isoG eo) sim
+
+addPLO :: PendingLimitOrder -> SimState -> (Bool, SimState)
+addPLO plo stat
+    | rem > 0 = (True, stat & ssPendingLimitOrders %~ (++[plo]) & rlens %~ (+ amount))
+    | otherwise = (False, stat)
+    where
+    typ = view ploType plo
+    rlens = case typ of
+        BID -> ssCurrencyReserved
+        ASK -> ssCommodityReserved
+    amount = case typ of
+        BID -> (_ploVolume plo) * (_ploUnitPrice plo)
+        ASK -> view ploVolume plo
+    rem = case typ of
+        BID -> (_ssCurrencyBalance stat) - amount
+        ASK -> (_ssCommodityBalance stat) - amount
+
+addPMO :: PendingMarketOrder -> SimState -> (Bool, SimState)
+addPMO pmo stat
+    | rem > 0 = (True, stat & ssPendingMarketOrders %~ (++[pmo]) & rlens %~ (+ amount))
+    | otherwise = (False, stat)
+    where
+    typ = view pmoType pmo
+    rlens = case typ of
+        BID -> ssCurrencyReserved
+        ASK -> ssCommodityReserved
+    amount = view pmoAmount pmo
+    rem = case typ of
+        BID -> (_ssCurrencyBalance stat) - amount
+        ASK -> (_ssCommodityBalance stat) - amount
 
 toOrder :: PendingLimitOrder -> Order
 toOrder plo =
@@ -189,14 +221,6 @@ toPLO o =
         _ploOutstanding = view oVolume o
     }
 
-guardOrderBalance :: (Exchange e, Monad (ExchangeM e), OrderP e) => OrderType -> Double -> Sim e -> StdM (Sim e) ()
-guardOrderBalance BID amount sim = do
-    curBal <- viewState ssCurrencyBalance sim
-    when (curBal < amount) $ (lift . left . StdErr) "Currency balance is too low to place order"
-guardOrderBalance ASK amount sim = do
-    comBal <- viewState ssCommodityBalance sim
-    when (comBal < amount) $ (lift . left . StdErr) "Commodity balance is too low to place order"
-
 cancelO :: String -> SimState -> SimState
 cancelO oid stat = set ssPendingLimitOrders plos stat
     where plos = filter ((/=oid) . view ploID) $ view ssPendingLimitOrders stat
@@ -215,4 +239,6 @@ instance (Exchange e, Monad (ExchangeM e), BalancesP e, Iso Balances (BalancesT 
         stat <- readState sim
         let cur = view ssCurrencyBalance stat
         let com = view ssCommodityBalance stat
-        return . isoF $ Balances cur com
+        let curRes = view ssCurrencyReserved stat
+        let comRes = view ssCommodityReserved stat
+        return . isoF $ Balances (cur - curRes) (com - comRes)
