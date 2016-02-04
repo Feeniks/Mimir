@@ -1,4 +1,6 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Mimir.Types where
@@ -39,7 +41,10 @@ class BalancesP e where
     type BalancesT e :: *
     balances' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) (BalancesT e)
 
-data Iso a b = Iso {
-    isoF :: a -> b,
+class Iso a b where
+    isoF :: a -> b
     isoG :: b -> a
-}
+
+instance Iso a a where
+    isoF = id
+    isoG = id

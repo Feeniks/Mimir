@@ -29,7 +29,7 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 --- Create a Sim
 ---
 
-createSim :: (Exchange e, ExchangeM e ~ StdM e) => Int -> Double -> Double -> e -> IO (Sim e)
+createSim :: Exchange e => Int -> Double -> Double -> e -> IO (Sim e)
 createSim cycleDelayMS currencyBalance commodityBalance e = do
     idg <- fmap round getPOSIXTime
     let stat = SimState {
@@ -58,7 +58,7 @@ destroySim = killThread . view siManagerThreadID
 --- Run a Sim
 ---
 
-runSim :: (Exchange e, ExchangeM e ~ StdM e) => Int -> TVar SimState -> e -> IO ()
+runSim :: Exchange e => Int -> TVar SimState -> e -> IO ()
 runSim cycleDelayMS tstat e = forever $ do
     --TODO: impl
     threadDelay $ cycleDelayMS * 1000
@@ -67,44 +67,44 @@ runSim cycleDelayMS tstat e = forever $ do
 --- Utility
 ---
 
-runExchange :: (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr) => (e -> StdM e a) -> Sim e -> StdM (Sim e) a
+runExchange :: (Exchange e, Iso StdErr (ErrorT e)) => (e -> ExchangeM e a) -> Sim e -> StdM (Sim e) a
 runExchange f sim = do
     let ex = view siExchange sim
     res <- liftIO $ reifyIO (f ex) ex
     case res of
-        Left e -> lift (left e)
+        Left e -> lift . left $ isoG e
         Right r -> return r
 
-readState :: (Exchange e, ExchangeM e ~ StdM e) => Sim e -> StdM (Sim e) SimState
+readState :: Exchange e => Sim e -> StdM (Sim e) SimState
 readState = liftIO . atomically . readTVar . view siState
 
-viewState :: (Exchange e, ExchangeM e ~ StdM e) => Lens SimState SimState r r -> Sim e -> StdM (Sim e) r
+viewState :: Exchange e => Lens SimState SimState r r -> Sim e -> StdM (Sim e) r
 viewState lens = liftIO . atomically . fmap (view lens) . readTVar . view siState
 
-operateState :: (Exchange e, ExchangeM e ~ StdM e) => (SimState -> (a, SimState)) -> Sim e -> StdM (Sim e) a
+operateState :: Exchange e => (SimState -> (a, SimState)) -> Sim e -> StdM (Sim e) a
 operateState f sim = liftIO . atomically $ do
     let tv = view siState sim
     (res, stat) <- fmap f $ readTVar tv
     writeTVar tv stat
     return res
 
-modifyState :: (Exchange e, ExchangeM e ~ StdM e) => (SimState -> SimState) -> Sim e -> StdM (Sim e) ()
+modifyState :: Exchange e => (SimState -> SimState) -> Sim e -> StdM (Sim e) ()
 modifyState f = operateState $ (\s -> ((), f s))
 
 ---
 --- Exchange instance
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr) => Exchange (Sim e) where
+instance Exchange e => Exchange (Sim e) where
     type ExchangeM (Sim e) = StdM (Sim e)
-    type ErrorT (Sim e) = ErrorT e
+    type ErrorT (Sim e) = StdErr
     reifyIO = reifyStdM
 
 ---
 --- Ticker
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, TickerP e) => TickerP (Sim e) where
+instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), TickerP e) => TickerP (Sim e) where
     type TickerT (Sim e) = TickerT e
     ticker' = runExchange ticker'
 
@@ -112,7 +112,7 @@ instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, TickerP e) => Tic
 --- Candles
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, CandlesP e) => CandlesP (Sim e) where
+instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), CandlesP e) => CandlesP (Sim e) where
     type CandleIntervalT (Sim e) = CandleIntervalT e
     type CandleT (Sim e) = CandleT e
     candles' t iv = runExchange (\e -> candles' e iv) t
@@ -121,7 +121,7 @@ instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, CandlesP e) => Ca
 --- OrderBook
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, OrderBookP e) => OrderBookP (Sim e) where
+instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), OrderBookP e) => OrderBookP (Sim e) where
     type OrderBookT (Sim e) = OrderBookT e
     orderBook' = runExchange orderBook'
 
@@ -129,7 +129,7 @@ instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, OrderBookP e) => 
 --- TradeHistory
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, TradeHistoryP e) => TradeHistoryP (Sim e) where
+instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), TradeHistoryP e) => TradeHistoryP (Sim e) where
     type TradeT (Sim e) = TradeT e
     tradeHistory' = runExchange tradeHistory'
 
@@ -138,30 +138,33 @@ instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, TradeHistoryP e) 
 --- Order
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, OrderP e, OrderT e ~ Order, OrderAmountT e ~ Double, OrderTypeT e ~ OrderType, OrderResponseT e ~ OrderResponse) => OrderP (Sim e) where
-    type OrderTypeT (Sim e) = OrderType
-    type OrderAmountT (Sim e) = Double
-    type OrderT (Sim e) = Order
-    type OrderResponseT (Sim e) = OrderResponse
+instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso OrderType (OrderTypeT e), Iso Double (OrderAmountT e), Iso OrderResponse (OrderResponseT e)) => OrderP (Sim e) where
+    type OrderTypeT (Sim e) = OrderTypeT e
+    type OrderAmountT (Sim e) = OrderAmountT e
+    type OrderT (Sim e) = OrderT e
+    type OrderResponseT (Sim e) = OrderResponseT e
     currentOrders' sim = do
         stat <- readState sim
         let plos = view ssPendingLimitOrders stat
-        return $ fmap toOrder plos
-    placeLimitOrder' sim o = do
+        return . fmap isoF $ fmap toOrder plos
+    placeLimitOrder' sim eo = do
+        let o = isoG eo
         case (view oType o) of
             BID -> guardOrderBalance BID (view oVolume o * view oUnitPrice o) sim
             ASK -> guardOrderBalance ASK (view oVolume o) sim
         nid <- operateState newID sim
         let plo = toPLO $ set oID nid o
         modifyState (over ssPendingLimitOrders (++[plo])) sim
-        return $ OrderResponse nid
-    placeMarketOrder' sim typ amount = do
+        return . isoF $ OrderResponse nid
+    placeMarketOrder' sim etyp eamount = do
+        let typ = isoG etyp
+        let amount = isoG eamount
         guardOrderBalance typ amount sim
         nid <- operateState newID sim
         let pmo = PendingMarketOrder typ nid amount
         modifyState (over ssPendingMarketOrders (++[pmo])) sim
-        return $ OrderResponse nid
-    cancelOrder' sim o = modifyState (cancelO $ view oID o) sim
+        return . isoF $ OrderResponse nid
+    cancelOrder' sim eo = modifyState (cancelO . view oID $ isoG eo) sim
 
 toOrder :: PendingLimitOrder -> Order
 toOrder plo =
@@ -186,7 +189,7 @@ toPLO o =
         _ploOutstanding = view oVolume o
     }
 
-guardOrderBalance :: (Exchange e, ExchangeM e ~ StdM e, OrderP e, OrderTypeT e ~ OrderType, OrderAmountT e ~ Double) => OrderType -> Double -> Sim e -> StdM (Sim e) ()
+guardOrderBalance :: (Exchange e, Monad (ExchangeM e), OrderP e) => OrderType -> Double -> Sim e -> StdM (Sim e) ()
 guardOrderBalance BID amount sim = do
     curBal <- viewState ssCurrencyBalance sim
     when (curBal < amount) $ (lift . left . StdErr) "Currency balance is too low to place order"
@@ -206,10 +209,10 @@ newID stat = (show nid, set ssIDGen nid stat)
 --- Balances
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, BalancesP e, BalancesT e ~ Balances) => BalancesP (Sim e) where
-    type BalancesT (Sim e) = Balances
+instance (Exchange e, Monad (ExchangeM e), BalancesP e, Iso Balances (BalancesT e)) => BalancesP (Sim e) where
+    type BalancesT (Sim e) = BalancesT e
     balances' sim = do
         stat <- readState sim
         let cur = view ssCurrencyBalance stat
         let com = view ssCommodityBalance stat
-        return $ Balances cur com
+        return . isoF $ Balances cur com
