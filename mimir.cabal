@@ -20,6 +20,7 @@ library
                      , Mimir.Std.Types
                      , Mimir.Std.HTTP
                      , Mimir.Std.Func
+                     , Mimir.Std.Constructor
                      , Mimir.Sim
                      , Mimir.Sim.Types
                      , Mimir.BitX
