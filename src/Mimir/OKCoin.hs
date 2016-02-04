@@ -35,6 +35,8 @@ instance HasManager OKCoin where
 
 instance Exchange OKCoin where
     type ExchangeM OKCoin = StdM OKCoin
+    type ErrorT OKCoin = StdErr
+    reifyIO = reifyStdM
 
 ---
 --- Ticker

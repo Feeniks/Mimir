@@ -4,7 +4,7 @@
 module Mimir.Std(
     module Mimir.Std.Types,
     module Mimir.Std.HTTP,
-    runStdM,
+    reifyStdM,
     viewStdM,
     ticker,
     candles,
@@ -27,8 +27,8 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Either
 import Data.Proxy
 
-runStdM :: (Exchange e, ExchangeM e ~ StdM e) => StdM e a -> e -> IO (Either StdErr a)
-runStdM act = runEitherT . runReaderT act
+reifyStdM :: (Exchange e, ExchangeM e ~ StdM e) => StdM e a -> e -> IO (Either StdErr a)
+reifyStdM act = runEitherT . runReaderT act
 
 ticker :: (Exchange e, ExchangeM e ~ StdM e, TickerP e) => StdM e (TickerT e)
 ticker = ticker' =<< ask

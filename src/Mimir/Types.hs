@@ -5,6 +5,8 @@ module Mimir.Types where
 
 class Exchange e where
     type ExchangeM e :: * -> *
+    type ErrorT e :: *
+    reifyIO :: (ExchangeM e) a -> e -> IO (Either (ErrorT e) a)
 
 class TickerP e where
     type TickerT e :: *

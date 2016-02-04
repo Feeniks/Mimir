@@ -28,6 +28,8 @@ instance HasManager BitX where
 
 instance Exchange BitX where
     type ExchangeM BitX = StdM BitX
+    type ErrorT BitX = StdErr
+    reifyIO = reifyStdM
 
 ---
 --- Ticker

@@ -67,10 +67,10 @@ runSim cycleDelayMS tstat e = forever $ do
 --- Utility
 ---
 
-runExchange :: (Exchange e, ExchangeM e ~ StdM e) => (e -> StdM e a) -> Sim e -> StdM (Sim e) a
+runExchange :: (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr) => (e -> StdM e a) -> Sim e -> StdM (Sim e) a
 runExchange f sim = do
     let ex = view siExchange sim
-    res <- liftIO $ runStdM (f ex) ex
+    res <- liftIO $ reifyIO (f ex) ex
     case res of
         Left e -> lift (left e)
         Right r -> return r
@@ -95,14 +95,16 @@ modifyState f = operateState $ (\s -> ((), f s))
 --- Exchange instance
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e) => Exchange (Sim e) where
+instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr) => Exchange (Sim e) where
     type ExchangeM (Sim e) = StdM (Sim e)
+    type ErrorT (Sim e) = ErrorT e
+    reifyIO = reifyStdM
 
 ---
 --- Ticker
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, TickerP e) => TickerP (Sim e) where
+instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, TickerP e) => TickerP (Sim e) where
     type TickerT (Sim e) = TickerT e
     ticker' = runExchange ticker'
 
@@ -110,7 +112,7 @@ instance (Exchange e, ExchangeM e ~ StdM e, TickerP e) => TickerP (Sim e) where
 --- Candles
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, CandlesP e) => CandlesP (Sim e) where
+instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, CandlesP e) => CandlesP (Sim e) where
     type CandleIntervalT (Sim e) = CandleIntervalT e
     type CandleT (Sim e) = CandleT e
     candles' t iv = runExchange (\e -> candles' e iv) t
@@ -119,7 +121,7 @@ instance (Exchange e, ExchangeM e ~ StdM e, CandlesP e) => CandlesP (Sim e) wher
 --- OrderBook
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, OrderBookP e) => OrderBookP (Sim e) where
+instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, OrderBookP e) => OrderBookP (Sim e) where
     type OrderBookT (Sim e) = OrderBookT e
     orderBook' = runExchange orderBook'
 
@@ -127,7 +129,7 @@ instance (Exchange e, ExchangeM e ~ StdM e, OrderBookP e) => OrderBookP (Sim e) 
 --- TradeHistory
 ---
 
-instance (Exchange e, ExchangeM e ~ StdM e, TradeHistoryP e) => TradeHistoryP (Sim e) where
+instance (Exchange e, ExchangeM e ~ StdM e, ErrorT e ~ StdErr, TradeHistoryP e) => TradeHistoryP (Sim e) where
     type TradeT (Sim e) = TradeT e
     tradeHistory' = runExchange tradeHistory'
 
