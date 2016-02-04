@@ -23,6 +23,7 @@ import Control.Lens (Lens, over, set, view, (&), (.~), (%~))
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Either (left)
+import Data.Maybe (fromJust, isJust, listToMaybe)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 
 ---
@@ -222,8 +223,20 @@ toPLO o =
     }
 
 cancelO :: String -> SimState -> SimState
-cancelO oid stat = set ssPendingLimitOrders plos stat
-    where plos = filter ((/=oid) . view ploID) $ view ssPendingLimitOrders stat
+cancelO oid stat
+    | orderExists = stat & ssPendingLimitOrders %~ (filter ((/=oid) . view ploID)) & rlens %~ (\b -> b - amount)
+    | otherwise = stat
+    where
+    plo = listToMaybe . filter ((==oid) . view ploID) $ view ssPendingLimitOrders stat
+    orderExists = isJust plo
+    rlens = case (fmap (view ploType) plo) of
+        Nothing -> undefined
+        (Just BID) -> ssCurrencyReserved
+        (Just ASK) -> ssCommodityReserved
+    amount = case (fmap (view ploType) plo) of
+        Nothing -> 0.0
+        (Just BID) -> (fromJust $ fmap _ploVolume plo) * (fromJust $ fmap _ploUnitPrice plo)
+        (Just ASK) -> (fromJust $ fmap _ploVolume plo)
 
 newID :: SimState -> (String, SimState)
 newID stat = (show nid, set ssIDGen nid stat)
