@@ -37,8 +37,8 @@ data Candle = Candle {
 } deriving Show
 
 data OrderBook = OrderBook {
-    _oBids :: [OrderBookEntry],
-    _oAsks :: [OrderBookEntry]
+    _obBids :: [OrderBookEntry],
+    _obAsks :: [OrderBookEntry]
 } deriving Show
 
 data OrderBookEntry = OrderBookEntry {

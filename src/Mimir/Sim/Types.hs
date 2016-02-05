@@ -18,8 +18,6 @@ data SimState = SimState {
     _ssIDGen :: Int,
     _ssCurrencyBalance :: Double,
     _ssCommodityBalance :: Double,
-    _ssCurrencyReserved :: Double,
-    _ssCommodityReserved :: Double,
     _ssPendingLimitOrders :: [PendingLimitOrder],
     _ssPendingMarketOrders :: [PendingMarketOrder]
 }
@@ -30,8 +28,7 @@ data PendingLimitOrder = PendingLimitOrder {
     _ploTimeUTCUS :: Maybe Int,
     _ploExpirationTimeUTCUS :: Maybe Int,
     _ploVolume :: Double,
-    _ploUnitPrice :: Double,
-    _ploOutstanding :: Double
+    _ploUnitPrice :: Double
 }
 
 data PendingMarketOrder = PendingMarketOrder {
