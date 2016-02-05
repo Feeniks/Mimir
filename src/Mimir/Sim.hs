@@ -88,27 +88,27 @@ satisfyPLO ob stat plo
 satisfyLimitBuy :: OrderBook -> PendingLimitOrder -> SimState -> SimState
 satisfyLimitBuy ob plo stat = case buyPrice vol ob of
     Nothing -> stat
-    Just price -> case (price < maxPrice) of
-        True -> stat & ssPendingLimitOrders %~ stripOrder & ssCurrencyBalance %~ (+ (available - price)) & ssCommodityBalance %~ (+ vol)
+    Just price -> case (price < maxCost) of
+        True -> stat & ssPendingLimitOrders %~ stripOrder & ssCurrencyBalance %~ (+ (maxCost - price)) & ssCommodityBalance %~ (+ vol)
         False -> stat
     where
     oid = view ploID plo
     vol = view ploVolume plo
-    maxPrice = view ploUnitPrice plo
-    available = vol * maxPrice
+    unitPrice = view ploUnitPrice plo
+    maxCost = vol * unitPrice
     stripOrder = (filter $ (/=oid) . view ploID)
 
 satisfyLimitSell :: OrderBook -> PendingLimitOrder -> SimState -> SimState
 satisfyLimitSell ob plo stat = case sellPrice vol ob of
     Nothing -> stat
-    Just price -> case (price > minPrice) of
+    Just price -> case (price > minCost) of
         True -> stat & ssPendingLimitOrders %~ stripOrder & ssCurrencyBalance %~ (+ price)
         False -> stat
     where
     oid = view ploID plo
     vol = view ploVolume plo
-    minPrice = view ploUnitPrice plo
-    available = vol * minPrice
+    unitPrice = view ploUnitPrice plo
+    minCost = vol * unitPrice
     stripOrder = (filter $ (/=oid) . view ploID)
 
 satisfyPMO :: OrderBook -> SimState -> PendingMarketOrder -> SimState
@@ -279,7 +279,9 @@ addPLO plo stat
     blens = case typ of
         BID -> ssCurrencyBalance
         ASK -> ssCommodityBalance
-    amount = view ploVolume plo * view ploUnitPrice plo
+    amount = case typ of
+        BID -> view ploVolume plo * view ploUnitPrice plo
+        ASK -> view ploVolume plo
     bal = case typ of
         BID -> view ssCurrencyBalance stat
         ASK -> view ssCommodityBalance stat
