@@ -23,7 +23,7 @@ import Control.Lens (Lens, over, set, view, (&), (.~), (%~))
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Either (left)
-import Data.Maybe (fromJust, isJust, listToMaybe)
+import Data.Maybe (catMaybes, fromJust, isJust, listToMaybe)
 import Data.List (partition, sortOn)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 
@@ -63,6 +63,8 @@ destroySim = killThread . view siManagerThreadID
 
 runSim :: (Exchange e, Monad (ExchangeM e), OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => Int -> TVar SimState -> e -> IO ()
 runSim cycleDelayMS tstat e = forever $ do
+    ct <- fmap round $ getPOSIXTime
+    atomically $ modifyTVar tstat (stripExpiredPMOs ct)
     stat <- atomically $ readTVar tstat
     let plos = view ssPendingLimitOrders stat
     let pmos = view ssPendingMarketOrders stat
@@ -72,18 +74,29 @@ runSim cycleDelayMS tstat e = forever $ do
             res <- reifyIO (orderBook' e >>= \ob -> tradeHistory' e >>= \tx -> return (isoG ob, fmap isoG tx)) e
             case res of
                 Left _ -> return () --TODO: throw?
-                Right (ob, tx) -> atomically $ modifyTVar tstat (matchOrders ob tx)
+                Right (ob, tx) -> atomically $ modifyTVar tstat (matchOrders ct ob tx)
     tmeMS <- fmap (round . (* 1000)) $ getPOSIXTime
     atomically $ modifyTVar tstat (set ssUpdatedUTCMS tmeMS)
     threadDelay $ cycleDelayMS * 1000
 
-matchOrders :: OrderBook -> [Trade] -> SimState -> SimState
-matchOrders ob rtx stat = flip (foldl (satisfyPLO ob')) plos $ foldl (satisfyPMO ob') stat pmos
+matchOrders :: Int -> OrderBook -> [Trade] -> SimState -> SimState
+matchOrders tme ob rtx stat = flip (foldl (satisfyPLO ob')) plos $ foldl (satisfyPMO ob') stat pmos
     where
     updated = view ssUpdatedUTCMS stat
     ob' = appendRecentTrades ob rtx updated
     plos = reverse . sortOn (view ploID) $ view ssPendingLimitOrders stat
     pmos = reverse . sortOn (view pmoID) $ view ssPendingMarketOrders stat
+
+stripExpiredPMOs :: Int -> SimState -> SimState
+stripExpiredPMOs tme stat = stat & ssPendingLimitOrders .~ current & ssCurrencyBalance %~ (+ curRefund) & ssCommodityBalance %~ (+ comRefund)
+    where
+    (current, expired) = partition isCurrent $ view ssPendingLimitOrders stat
+    (expiredBids, expiredAsks) = partition ((==BID) . view ploType) expired
+    curRefund = sum . fmap (\plo -> view ploVolume plo * view ploUnitPrice plo) $ expiredBids
+    comRefund = sum . fmap (view ploVolume) $ expiredAsks
+    isCurrent plo = case (view ploExpirationTimeUTC plo) of
+        Nothing -> True
+        Just etme -> (etme - tme) > 0
 
 appendRecentTrades :: OrderBook -> [Trade] -> Int -> OrderBook
 appendRecentTrades ob rtx updated = ob & obAsks %~ (++asks) & obBids %~ (++bids)
@@ -326,8 +339,8 @@ toOrder plo =
     Order {
         _oType = view ploType plo,
         _oID = view ploID plo,
-        _oTimeUTC = fmap (flip div 1000000) $ view ploTimeUTCUS plo,
-        _oExpirationTimeUTC = fmap (flip div 1000000) $ view ploExpirationTimeUTCUS plo,
+        _oTimeUTC = view ploTimeUTC plo,
+        _oExpirationTimeUTC = view ploExpirationTimeUTC plo,
         _oVolume = view ploVolume plo,
         _oUnitPrice = view ploUnitPrice plo
     }
@@ -337,8 +350,8 @@ toPLO o =
     PendingLimitOrder {
         _ploType = view oType o,
         _ploID = view oID o,
-        _ploTimeUTCUS = fmap (* 1000000) $ view oTimeUTC o,
-        _ploExpirationTimeUTCUS = fmap (* 1000000) $ view oExpirationTimeUTC o,
+        _ploTimeUTC = view oTimeUTC o,
+        _ploExpirationTimeUTC = view oExpirationTimeUTC o,
         _ploVolume = view oVolume o,
         _ploUnitPrice = view oUnitPrice o
     }
