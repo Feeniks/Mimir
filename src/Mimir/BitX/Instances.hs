@@ -44,8 +44,7 @@ instance FromJSON Order where
     parseJSON (Object v) =
         Order   <$> (v .: "type" >>= return . read . fmap toUpper)
                 <*> v .: "order_id"
-                <*> v .:? "creation_timestamp"
-                <*> v .:? "expiration_timestamp"
+                <*> v .: "creation_timestamp"
                 <*> rstr v "limit_volume"
                 <*> rstr v "limit_price"
     parseJSON _ = mzero

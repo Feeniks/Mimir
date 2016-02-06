@@ -93,9 +93,9 @@ instance OrderP BitX where
         req <- buildReq (bURL <> "&state=PENDING") "GET" [] noBody
         (Orders mox) <- httpJSON req
         maybe (return []) return mox
-    placeLimitOrder' _ o = do
+    placeLimitOrder' _ typ vol price = do
         bURL <- viewStdM bxBaseURL
-        params <- mkLimitOrder o
+        params <- mkLimitOrder typ vol price
         req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "postorder") "POST" [] noBody
         res <- httpJSON req
         return res
@@ -140,10 +140,10 @@ marketURL endpoint = do
     let url = baseURL <> endpoint <> "?pair=" <> pairCode
     return url
 
-mkLimitOrder :: Order -> StdM BitX [(B.ByteString, B.ByteString)]
-mkLimitOrder o = do
+mkLimitOrder :: OrderType -> Double -> Double -> StdM BitX [(B.ByteString, B.ByteString)]
+mkLimitOrder typ vol price = do
     pairCode <- viewStdM bxPairCode
-    return [("pair", B.pack pairCode), ("type", B.pack . show . view oType $ o), ("volume", encNum . view oVolume $ o), ("price", encNum . view oUnitPrice $ o)]
+    return [("pair", B.pack pairCode), ("type", B.pack $ show typ), ("volume", encNum $ vol), ("price", encNum $ price)]
 
 mkMarketOrder :: OrderType -> Double -> StdM BitX [(B.ByteString, B.ByteString)]
 mkMarketOrder typ amount = do

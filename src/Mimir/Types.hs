@@ -33,7 +33,7 @@ class OrderP e where
     type OrderT e :: *
     type OrderResponseT e :: *
     currentOrders' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) [OrderT e]
-    placeLimitOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderT e -> (ExchangeM e) (OrderResponseT e)
+    placeLimitOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderTypeT e -> OrderAmountT e -> OrderAmountT e -> (ExchangeM e) (OrderResponseT e)
     placeMarketOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderTypeT e -> OrderAmountT e -> (ExchangeM e) (OrderResponseT e)
     cancelOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderT e -> (ExchangeM e) ()
 

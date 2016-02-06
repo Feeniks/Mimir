@@ -104,9 +104,9 @@ instance OrderP OKCoin where
         sym <- viewStdM ocSymbol
         (Orders ox) <- apiReqAuth "order_history.do" [("symbol", sym), ("status", "0"), ("current_page", "0"), ("page_length", "200")]
         return ox
-    placeLimitOrder' _ o = do
+    placeLimitOrder' _ typ vol price = do
         sym <- viewStdM ocSymbol
-        apiReqAuth "trade.do" [("symbol", sym), ("type", otyp $ view oType o), ("price", encNum . view oUnitPrice $ o), ("amount", encNum . view oVolume $ o)]
+        apiReqAuth "trade.do" [("symbol", sym), ("type", otyp $ typ), ("price", encNum $ price), ("amount", encNum $ vol)]
         where
         otyp BID = "buy"
         otyp ASK = "sell"

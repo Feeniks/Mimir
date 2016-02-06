@@ -56,8 +56,7 @@ data Trade = Trade {
 data Order = Order {
     _oType :: OrderType,
     _oID :: String,
-    _oTimeUTC :: Maybe Int,
-    _oExpirationTimeUTC :: Maybe Int,
+    _oTimeUTCMS :: Int,
     _oVolume :: Double,
     _oUnitPrice :: Double
 } deriving Show

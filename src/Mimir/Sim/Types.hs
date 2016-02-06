@@ -26,8 +26,7 @@ data SimState = SimState {
 data PendingLimitOrder = PendingLimitOrder {
     _ploType :: OrderType,
     _ploID :: String,
-    _ploTimeUTC :: Maybe Int,
-    _ploExpirationTimeUTC :: Maybe Int,
+    _ploTimeUTCMS :: Int,
     _ploVolume :: Double,
     _ploUnitPrice :: Double
 }
@@ -35,6 +34,7 @@ data PendingLimitOrder = PendingLimitOrder {
 data PendingMarketOrder = PendingMarketOrder {
     _pmoType :: OrderType,
     _pmoID :: String,
+    _pmoTimeUTCMS :: Int,
     _pmoAmount :: Double
 }
 

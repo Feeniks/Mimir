@@ -63,59 +63,58 @@ destroySim = killThread . view siManagerThreadID
 
 runSim :: (Exchange e, Monad (ExchangeM e), OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => Int -> TVar SimState -> e -> IO ()
 runSim cycleDelayMS tstat e = forever $ do
-    ct <- fmap round $ getPOSIXTime
-    atomically $ modifyTVar tstat (stripExpiredPMOs ct)
     stat <- atomically $ readTVar tstat
-    let plos = view ssPendingLimitOrders stat
-    let pmos = view ssPendingMarketOrders stat
-    case (length pmos + length plos == 0) of
-        True -> return ()
-        False -> do
-            res <- reifyIO (orderBook' e >>= \ob -> tradeHistory' e >>= \tx -> return (isoG ob, fmap isoG tx)) e
-            case res of
-                Left _ -> return () --TODO: throw?
-                Right (ob, tx) -> atomically $ modifyTVar tstat (matchOrders ct ob tx)
+    let plos = _ssPendingLimitOrders stat
+    let pmos = _ssPendingMarketOrders stat
+    when (length pmos + length plos > 0) $ simCycle tstat e
     tmeMS <- fmap (round . (* 1000)) $ getPOSIXTime
     atomically $ modifyTVar tstat (set ssUpdatedUTCMS tmeMS)
     threadDelay $ cycleDelayMS * 1000
 
-matchOrders :: Int -> OrderBook -> [Trade] -> SimState -> SimState
-matchOrders tme ob rtx stat = flip (foldl (satisfyPLO ob')) plos $ foldl (satisfyPMO ob') stat pmos
-    where
-    updated = view ssUpdatedUTCMS stat
-    ob' = appendRecentTrades ob rtx updated
-    plos = reverse . sortOn (view ploID) $ view ssPendingLimitOrders stat
-    pmos = reverse . sortOn (view pmoID) $ view ssPendingMarketOrders stat
+simCycle :: (Exchange e, Monad (ExchangeM e), OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => TVar SimState -> e -> IO ()
+simCycle tstat e = do
+    res <- reifyIO (orderBook' e >>= \ob -> tradeHistory' e >>= \tx -> return (isoG ob, fmap isoG tx)) e
+    case res of
+        Left _ -> return () --TODO: throw?
+        Right (ob, tx) -> atomically $ modifyTVar tstat (matchOrders ob tx)
 
-stripExpiredPMOs :: Int -> SimState -> SimState
-stripExpiredPMOs tme stat = stat & ssPendingLimitOrders .~ current & ssCurrencyBalance %~ (+ curRefund) & ssCommodityBalance %~ (+ comRefund)
+matchOrders ::  OrderBook -> [Trade] -> SimState -> SimState
+matchOrders ob rtx stat = flip (foldl (satisfyPLO ob')) plos $ foldl (satisfyPMO ob') stat pmos
     where
-    (current, expired) = partition isCurrent $ view ssPendingLimitOrders stat
-    (expiredBids, expiredAsks) = partition ((==BID) . view ploType) expired
-    curRefund = sum . fmap (\plo -> view ploVolume plo * view ploUnitPrice plo) $ expiredBids
-    comRefund = sum . fmap (view ploVolume) $ expiredAsks
-    isCurrent plo = case (view ploExpirationTimeUTC plo) of
-        Nothing -> True
-        Just etme -> (etme - tme) > 0
+    plos = reverse . sortOn (view ploID) $ _ssPendingLimitOrders stat
+    pmos = reverse . sortOn (view pmoID) $ _ssPendingMarketOrders stat
+    updatedMS = _ssUpdatedUTCMS stat
+    updated = max updatedMS $ min (earliestPLO updatedMS plos) (earliestPMO updatedMS pmos)
+    ob' = appendRecentTrades ob rtx updated
+
+earliestPLO :: Int -> [PendingLimitOrder] -> Int
+earliestPLO def plos = case (fmap _ploTimeUTCMS plos) of
+    [] -> def
+    tx -> minimum tx
+
+earliestPMO :: Int -> [PendingMarketOrder] -> Int
+earliestPMO def pmos = case (fmap _pmoTimeUTCMS pmos) of
+    [] -> def
+    tx -> minimum tx
 
 appendRecentTrades :: OrderBook -> [Trade] -> Int -> OrderBook
 appendRecentTrades ob rtx updated = ob & obAsks %~ (++asks) & obBids %~ (++bids)
     where
-    (tbids, tasks) = partition ((==BID) . view trType) $ filter ((>updated) . view trTimeUTCMS)  rtx
+    (tbids, tasks) = partition ((==BID) . _trType) $ filter ((>updated) . _trTimeUTCMS)  rtx
     bids = fmap tradeToEntry tbids
     asks = fmap tradeToEntry tasks
 
 tradeToEntry :: Trade -> OrderBookEntry
 tradeToEntry t = OrderBookEntry vol price
     where
-    vol = view trVolume t
-    price = view trUnitPrice t
+    vol = _trVolume t
+    price = _trUnitPrice t
 
 satisfyPLO :: OrderBook -> SimState -> PendingLimitOrder -> SimState
 satisfyPLO ob stat plo
     | typ == BID = satisfyLimitBuy ob plo stat
     | typ == ASK = satisfyLimitSell ob plo stat
-    where typ = view ploType plo
+    where typ = _ploType plo
 
 satisfyLimitBuy :: OrderBook -> PendingLimitOrder -> SimState -> SimState
 satisfyLimitBuy ob plo stat = case buyPrice vol ob of
@@ -124,9 +123,9 @@ satisfyLimitBuy ob plo stat = case buyPrice vol ob of
         True -> stat & ssPendingLimitOrders %~ stripOrder & ssCurrencyBalance %~ (+ (maxCost - price)) & ssCommodityBalance %~ (+ vol)
         False -> stat
     where
-    oid = view ploID plo
-    vol = view ploVolume plo
-    unitPrice = view ploUnitPrice plo
+    oid = _ploID plo
+    vol = _ploVolume plo
+    unitPrice = _ploUnitPrice plo
     maxCost = vol * unitPrice
     stripOrder = (filter $ (/=oid) . view ploID)
 
@@ -137,25 +136,25 @@ satisfyLimitSell ob plo stat = case sellPrice vol ob of
         True -> stat & ssPendingLimitOrders %~ stripOrder & ssCurrencyBalance %~ (+ price)
         False -> stat
     where
-    oid = view ploID plo
-    vol = view ploVolume plo
-    unitPrice = view ploUnitPrice plo
+    oid = _ploID plo
+    vol = _ploVolume plo
+    unitPrice = _ploUnitPrice plo
     minCost = vol * unitPrice
-    stripOrder = (filter $ (/=oid) . view ploID)
+    stripOrder = (filter $ (/=oid) . _ploID)
 
 satisfyPMO :: OrderBook -> SimState -> PendingMarketOrder -> SimState
 satisfyPMO ob stat pmo
     | typ == BID = satisfyMarketBuy ob pmo stat
     | typ == ASK = satisfyMarketSell ob pmo stat
-    where typ = view pmoType pmo
+    where typ = _pmoType pmo
 
 satisfyMarketBuy :: OrderBook -> PendingMarketOrder -> SimState -> SimState
 satisfyMarketBuy ob pmo stat = case buyVolume amount ob of
     Nothing -> stat' & ssCurrencyBalance %~ (+ amount)
     Just vol -> stat' & ssCommodityBalance %~ (+ vol)
     where
-    oid = view pmoID pmo
-    amount = view pmoAmount pmo
+    oid = _pmoID pmo
+    amount = _pmoAmount pmo
     stripOrder = (filter $ (/=oid) . view pmoID)
     stat' = stat & ssPendingMarketOrders %~ stripOrder
 
@@ -164,16 +163,16 @@ satisfyMarketSell ob pmo stat = case sellPrice amount ob of
     Nothing -> stat' & ssCommodityBalance %~ (+ amount)
     Just price -> stat' & ssCurrencyBalance %~ (+ price)
     where
-    oid = view pmoID pmo
-    amount = view pmoAmount pmo
+    oid = _pmoID pmo
+    amount = _pmoAmount pmo
     stripOrder = (filter $ (/=oid) . view pmoID)
     stat' = stat & ssPendingMarketOrders %~ stripOrder
 
 buyPrice :: Double -> OrderBook -> Maybe Double
-buyPrice vol = priceFor vol 0 . sortOn (view oePrice) . view obAsks
+buyPrice vol = priceFor vol 0 . sortOn _oePrice . view obAsks
 
 buyVolume :: Double -> OrderBook -> Maybe Double
-buyVolume amount = buyVolume' amount 0 . sortOn (view oePrice) . view obAsks
+buyVolume amount = buyVolume' amount 0 . sortOn _oePrice . view obAsks
 
 buyVolume' :: Double -> Double -> [OrderBookEntry] -> Maybe Double
 buyVolume' amount vol ex
@@ -182,12 +181,12 @@ buyVolume' amount vol ex
         [] -> Nothing
         (e:t) -> buyVolume' (amount - paid) (vol + received) t
             where
-            entryVal = view oePrice e * view oeVolume e
+            entryVal = _oePrice e * _oeVolume e
             paid = min amount entryVal
-            received = paid / (view oePrice e)
+            received = paid / (_oePrice e)
 
 sellPrice :: Double -> OrderBook -> Maybe Double
-sellPrice vol = priceFor vol 0 . reverse . sortOn (view oePrice) . view obBids
+sellPrice vol = priceFor vol 0 . reverse . sortOn _oePrice . view obBids
 
 priceFor :: Double -> Double -> [OrderBookEntry] -> Maybe Double
 priceFor vol price ex
@@ -197,7 +196,7 @@ priceFor vol price ex
         (e:t) -> priceFor (vol - traded) (price + cost) t
             where
             traded = min vol (view oeVolume e)
-            cost = view oePrice e * traded
+            cost = _oePrice e * traded
 
 
 
@@ -285,10 +284,13 @@ instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso O
         stat <- readState sim
         let plos = view ssPendingLimitOrders stat
         return . fmap isoF $ fmap toOrder plos
-    placeLimitOrder' sim eo = do
-        let o = isoG eo
+    placeLimitOrder' sim etyp evol eprice = do
+        let typ = isoG etyp
+        let vol = isoG evol
+        let price = isoG eprice
         nid <- operateState newID sim
-        let plo = toPLO $ set oID nid o
+        tmeMS <- liftIO $ fmap (round . (* 1000)) getPOSIXTime
+        let plo = mkPLO typ nid vol price tmeMS
         ok <- operateState (addPLO plo) sim
         case ok of
             True ->  return . isoF $ OrderResponse nid
@@ -297,7 +299,8 @@ instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso O
         let typ = isoG etyp
         let amount = isoG eamount
         nid <- operateState newID sim
-        let pmo = PendingMarketOrder typ nid amount
+        tmeMS <- liftIO $ fmap (round . (* 1000)) getPOSIXTime
+        let pmo = PendingMarketOrder typ nid tmeMS amount
         ok <- operateState (addPMO pmo) sim
         case ok of
             True ->  return . isoF $ OrderResponse nid
@@ -314,11 +317,11 @@ addPLO plo stat
         BID -> ssCurrencyBalance
         ASK -> ssCommodityBalance
     amount = case typ of
-        BID -> view ploVolume plo * view ploUnitPrice plo
-        ASK -> view ploVolume plo
+        BID -> _ploVolume plo * _ploUnitPrice plo
+        ASK -> _ploVolume plo
     bal = case typ of
-        BID -> view ssCurrencyBalance stat
-        ASK -> view ssCommodityBalance stat
+        BID -> _ssCurrencyBalance stat
+        ASK -> _ssCommodityBalance stat
 
 addPMO :: PendingMarketOrder -> SimState -> (Bool, SimState)
 addPMO pmo stat
@@ -331,29 +334,27 @@ addPMO pmo stat
         ASK -> ssCommodityBalance
     amount = view pmoAmount pmo
     bal = case typ of
-        BID -> view ssCurrencyBalance stat
-        ASK -> view ssCommodityBalance stat
+        BID -> _ssCurrencyBalance stat
+        ASK -> _ssCommodityBalance stat
 
 toOrder :: PendingLimitOrder -> Order
 toOrder plo =
     Order {
-        _oType = view ploType plo,
-        _oID = view ploID plo,
-        _oTimeUTC = view ploTimeUTC plo,
-        _oExpirationTimeUTC = view ploExpirationTimeUTC plo,
-        _oVolume = view ploVolume plo,
-        _oUnitPrice = view ploUnitPrice plo
+        _oType = _ploType plo,
+        _oID = _ploID plo,
+        _oTimeUTCMS = _ploTimeUTCMS plo,
+        _oVolume = _ploVolume plo,
+        _oUnitPrice = _ploUnitPrice plo
     }
 
-toPLO :: Order -> PendingLimitOrder
-toPLO o =
+mkPLO :: OrderType -> String -> Double -> Double -> Int -> PendingLimitOrder
+mkPLO typ oid vol price tmeMS =
     PendingLimitOrder {
-        _ploType = view oType o,
-        _ploID = view oID o,
-        _ploTimeUTC = view oTimeUTC o,
-        _ploExpirationTimeUTC = view oExpirationTimeUTC o,
-        _ploVolume = view oVolume o,
-        _ploUnitPrice = view oUnitPrice o
+        _ploType = typ,
+        _ploID = oid,
+        _ploTimeUTCMS = tmeMS,
+        _ploVolume = vol,
+        _ploUnitPrice = price
     }
 
 cancelO :: String -> SimState -> SimState
@@ -363,13 +364,13 @@ cancelO oid stat
     where
     plo = listToMaybe . filter ((==oid) . view ploID) $ view ssPendingLimitOrders stat
     orderExists = isJust plo
-    blens = case (fmap (view ploType) plo) of
+    blens = case (fmap _ploType plo) of
         Nothing -> undefined
         (Just BID) -> ssCurrencyBalance
         (Just ASK) -> ssCommodityBalance
     amount = case plo of
         Nothing -> 0
-        Just o -> view ploVolume o * view ploUnitPrice o
+        Just o -> _ploVolume o * _ploUnitPrice o
 
 newID :: SimState -> (String, SimState)
 newID stat = (show nid, set ssIDGen nid stat)
@@ -383,6 +384,6 @@ instance (Exchange e, Monad (ExchangeM e), BalancesP e, Iso Balances (BalancesT 
     type BalancesT (Sim e) = BalancesT e
     balances' sim = do
         stat <- readState sim
-        let cur = view ssCurrencyBalance stat
-        let com = view ssCommodityBalance stat
+        let cur = _ssCurrencyBalance stat
+        let com = _ssCommodityBalance stat
         return . isoF $ Balances cur com

@@ -77,7 +77,7 @@ instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), OrderP e) => O
     type OrderT (Std e) = OrderT e
     type OrderResponseT (Std e) = OrderResponseT e
     currentOrders' = runExchange currentOrders'
-    placeLimitOrder' s o = runExchange (\e -> placeLimitOrder' e o) s
+    placeLimitOrder' s typ vol price = runExchange (\e -> placeLimitOrder' e typ vol price) s
     placeMarketOrder' s typ amount = runExchange (\e -> placeMarketOrder' e typ amount) s
     cancelOrder' s o = runExchange (\e -> cancelOrder' e o) s
 

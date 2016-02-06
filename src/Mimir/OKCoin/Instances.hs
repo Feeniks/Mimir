@@ -82,12 +82,13 @@ instance FromJSON Orders where
     parseJSON (Object v) = Orders <$> ((v .: "orders") >>= fmap catMaybes . mapM toOrder)
         where
         toOrder (Object vo) = do
+            time <- vo .: "create_date"
             typ <- rtyp vo "type"
             oid <- fmap show (vo .: "order_id" :: Parser Int)
             amt <- vo .: "amount"
             price <- vo .: "price"
             stat <- (vo .: "status" :: Parser Int)
-            let order = Order typ oid Nothing Nothing amt price
+            let order = Order typ oid time amt price
             case (stat == 0 || stat == 1) of
                 True -> return $ Just order
                 False -> return Nothing

@@ -45,8 +45,8 @@ tradeHistory = tradeHistory' =<< ask
 currentOrders :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => StdM e [OrderT e]
 currentOrders = currentOrders' =<< ask
 
-placeLimitOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderT e -> StdM e (OrderResponseT e)
-placeLimitOrder o = flip placeLimitOrder' o =<< ask
+placeLimitOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderTypeT e -> OrderAmountT e -> OrderAmountT e -> StdM e (OrderResponseT e)
+placeLimitOrder typ vol price = ask >>= \e -> placeLimitOrder' e typ vol price
 
 placeMarketOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderTypeT e -> OrderAmountT e -> StdM e (OrderResponseT e)
 placeMarketOrder typ vol = ask >>= \e -> placeMarketOrder' e typ vol
