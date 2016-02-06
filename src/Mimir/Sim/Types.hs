@@ -16,6 +16,7 @@ data Sim e = Sim {
 
 data SimState = SimState {
     _ssIDGen :: Int,
+    _ssUpdatedUTCMS :: Int,
     _ssCurrencyBalance :: Double,
     _ssCommodityBalance :: Double,
     _ssPendingLimitOrders :: [PendingLimitOrder],

@@ -74,10 +74,13 @@ instance FromJSON TradeHistory where
 
 instance FromJSON Trade where
     parseJSON (Object v) = do
-        ts <- fmap Just (v .: "timestamp")
+        ts <- v .: "timestamp"
         price <- rstr v "price"
         volume <- rstr v "volume"
-        return $ Trade ts (price / volume) volume
+        isBuy <- v .: "is_buy"
+        case isBuy of
+            True -> return $ Trade ts (price / volume) volume BID
+            False -> return $ Trade ts (price / volume) volume ASK
     parseJSON _ = mzero
 
 instance FromJSON Orders where

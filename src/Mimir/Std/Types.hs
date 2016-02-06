@@ -47,9 +47,10 @@ data OrderBookEntry = OrderBookEntry {
 } deriving Show
 
 data Trade = Trade {
-    _trTimeUTCMS :: Maybe Int,
+    _trTimeUTCMS :: Int,
     _trUnitPrice :: Double,
-    _trVolume :: Double
+    _trVolume :: Double,
+    _trType :: OrderType
 } deriving Show
 
 data Order = Order {

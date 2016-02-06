@@ -69,10 +69,13 @@ instance FromJSON OrderBookEntry where
 
 instance FromJSON Trade where
     parseJSON (Object v) = do
-        ts <- fmap Just (v .: "date_ms")
+        ts <- v .: "date_ms"
         price <- rstr v "price"
         volume <- rstr v "amount"
-        return $ Trade ts price volume
+        typs <- v .: "type"
+        case (typs == ("buy" :: String)) of
+            True -> return $ Trade ts price volume BID
+            False -> return $ Trade ts price volume ASK
     parseJSON _ = mzero
 
 instance FromJSON Orders where

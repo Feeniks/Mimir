@@ -31,11 +31,12 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 --- Create a Sim
 ---
 
-createSim :: (Exchange e, Monad (ExchangeM e), OrderBookP e, Iso OrderBook (OrderBookT e)) => Int -> Double -> Double -> e -> IO (Sim e)
+createSim :: (Exchange e, Monad (ExchangeM e), OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => Int -> Double -> Double -> e -> IO (Sim e)
 createSim cycleDelayMS currencyBalance commodityBalance e = do
-    idg <- fmap round getPOSIXTime
+    tmeMS <- fmap (round . (* 1000)) $ getPOSIXTime
     let stat = SimState {
-        _ssIDGen = idg,
+        _ssIDGen = div tmeMS 1000,
+        _ssUpdatedUTCMS = tmeMS,
         _ssCurrencyBalance = currencyBalance,
         _ssCommodityBalance = commodityBalance,
         _ssPendingLimitOrders = [],
@@ -60,24 +61,42 @@ destroySim = killThread . view siManagerThreadID
 --- Run a Sim
 ---
 
-runSim :: (Exchange e, Monad (ExchangeM e), OrderBookP e, Iso OrderBook (OrderBookT e)) => Int -> TVar SimState -> e -> IO ()
+runSim :: (Exchange e, Monad (ExchangeM e), OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => Int -> TVar SimState -> e -> IO ()
 runSim cycleDelayMS tstat e = forever $ do
-    plos <- atomically . fmap (view ssPendingLimitOrders) $ readTVar tstat
-    pmos <- atomically . fmap (view ssPendingMarketOrders) $ readTVar tstat
+    stat <- atomically $ readTVar tstat
+    let plos = view ssPendingLimitOrders stat
+    let pmos = view ssPendingMarketOrders stat
     case (length pmos + length plos == 0) of
         True -> return ()
         False -> do
-            res <- reifyIO (orderBook' e) e
+            res <- reifyIO (orderBook' e >>= \ob -> tradeHistory' e >>= \tx -> return (isoG ob, fmap isoG tx)) e
             case res of
                 Left _ -> return () --TODO: throw?
-                Right ob -> atomically $ modifyTVar tstat (matchOrders (isoG ob))
+                Right (ob, tx) -> atomically $ modifyTVar tstat (matchOrders ob tx)
+    tmeMS <- fmap (round . (* 1000)) $ getPOSIXTime
+    atomically $ modifyTVar tstat (set ssUpdatedUTCMS tmeMS)
     threadDelay $ cycleDelayMS * 1000
 
-matchOrders :: OrderBook -> SimState -> SimState
-matchOrders ob stat = flip (foldl (satisfyPLO ob)) plos $ foldl (satisfyPMO ob) stat pmos
+matchOrders :: OrderBook -> [Trade] -> SimState -> SimState
+matchOrders ob rtx stat = flip (foldl (satisfyPLO ob')) plos $ foldl (satisfyPMO ob') stat pmos
     where
+    updated = view ssUpdatedUTCMS stat
+    ob' = appendRecentTrades ob rtx updated
     plos = reverse . sortOn (view ploID) $ view ssPendingLimitOrders stat
     pmos = reverse . sortOn (view pmoID) $ view ssPendingMarketOrders stat
+
+appendRecentTrades :: OrderBook -> [Trade] -> Int -> OrderBook
+appendRecentTrades ob rtx updated = ob & obAsks %~ (++asks) & obBids %~ (++bids)
+    where
+    (tbids, tasks) = partition ((==BID) . view trType) $ filter ((>updated) . view trTimeUTCMS)  rtx
+    bids = fmap tradeToEntry tbids
+    asks = fmap tradeToEntry tasks
+
+tradeToEntry :: Trade -> OrderBookEntry
+tradeToEntry t = OrderBookEntry vol price
+    where
+    vol = view trVolume t
+    price = view trUnitPrice t
 
 satisfyPLO :: OrderBook -> SimState -> PendingLimitOrder -> SimState
 satisfyPLO ob stat plo
