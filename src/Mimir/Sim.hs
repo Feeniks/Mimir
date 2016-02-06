@@ -138,21 +138,23 @@ satisfyPMO ob stat pmo
 
 satisfyMarketBuy :: OrderBook -> PendingMarketOrder -> SimState -> SimState
 satisfyMarketBuy ob pmo stat = case buyVolume amount ob of
-    Nothing -> stat
-    Just vol -> stat & ssPendingMarketOrders %~ stripOrder & ssCommodityBalance %~ (+ vol)
+    Nothing -> stat' & ssCurrencyBalance %~ (+ amount)
+    Just vol -> stat' & ssCommodityBalance %~ (+ vol)
     where
     oid = view pmoID pmo
     amount = view pmoAmount pmo
     stripOrder = (filter $ (/=oid) . view pmoID)
+    stat' = stat & ssPendingMarketOrders %~ stripOrder
 
 satisfyMarketSell :: OrderBook -> PendingMarketOrder -> SimState -> SimState
 satisfyMarketSell ob pmo stat = case sellPrice amount ob of
-    Nothing -> stat
-    Just price -> stat & ssPendingMarketOrders %~ stripOrder & ssCurrencyBalance %~ (+ price)
+    Nothing -> stat' & ssCommodityBalance %~ (+ amount)
+    Just price -> stat' & ssCurrencyBalance %~ (+ price)
     where
     oid = view pmoID pmo
     amount = view pmoAmount pmo
     stripOrder = (filter $ (/=oid) . view pmoID)
+    stat' = stat & ssPendingMarketOrders %~ stripOrder
 
 buyPrice :: Double -> OrderBook -> Maybe Double
 buyPrice vol = priceFor vol 0 . sortOn (view oePrice) . view obAsks
