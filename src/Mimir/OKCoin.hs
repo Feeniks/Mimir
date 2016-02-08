@@ -99,26 +99,29 @@ instance OrderP OKCoin where
     type OrderTypeT OKCoin = OrderType
     type OrderAmountT OKCoin = Double
     type OrderT OKCoin = Order
-    type OrderResponseT OKCoin = OrderResponse
+    type OrderIDT OKCoin = String
     currentOrders' _ = do
         sym <- viewStdM ocSymbol
         (Orders ox) <- apiReqAuth "order_history.do" [("symbol", sym), ("status", "0"), ("current_page", "0"), ("page_length", "200")]
         return ox
     placeLimitOrder' _ typ vol price = do
         sym <- viewStdM ocSymbol
-        apiReqAuth "trade.do" [("symbol", sym), ("type", otyp $ typ), ("price", encNum $ price), ("amount", encNum $ vol)]
+        (OrderResponse oid) <- apiReqAuth "trade.do" [("symbol", sym), ("type", otyp $ typ), ("price", encNum $ price), ("amount", encNum $ vol)]
+        return oid
         where
         otyp BID = "buy"
         otyp ASK = "sell"
     placeMarketOrder' _ BID amount = do
         sym <- viewStdM ocSymbol
-        apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("price", encNum amount)]
+        (OrderResponse oid) <- apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("price", encNum amount)]
+        return oid
     placeMarketOrder' _ ASK amount = do
         sym <- viewStdM ocSymbol
-        apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("amount", encNum amount)]
-    cancelOrder' _ o = do
+        (OrderResponse oid) <- apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("amount", encNum amount)]
+        return oid
+    cancelOrder' _ oid = do
         sym <- viewStdM ocSymbol
-        apiReqAuth "cancel_order.do" [("symbol", sym), ("order_id", view oID o)]
+        apiReqAuth "cancel_order.do" [("symbol", sym), ("order_id", oid)]
 
 ---
 --- Utility

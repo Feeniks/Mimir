@@ -31,11 +31,11 @@ class OrderP e where
     type OrderTypeT e :: *
     type OrderAmountT e :: *
     type OrderT e :: *
-    type OrderResponseT e :: *
+    type OrderIDT e :: *
     currentOrders' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) [OrderT e]
-    placeLimitOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderTypeT e -> OrderAmountT e -> OrderAmountT e -> (ExchangeM e) (OrderResponseT e)
-    placeMarketOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderTypeT e -> OrderAmountT e -> (ExchangeM e) (OrderResponseT e)
-    cancelOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderT e -> (ExchangeM e) ()
+    placeLimitOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderTypeT e -> OrderAmountT e -> OrderAmountT e -> (ExchangeM e) (OrderIDT e)
+    placeMarketOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderTypeT e -> OrderAmountT e -> (ExchangeM e) (OrderIDT e)
+    cancelOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderIDT e -> (ExchangeM e) ()
 
 class BalancesP e where
     type BalancesT e :: *

@@ -45,14 +45,14 @@ tradeHistory = tradeHistory' =<< ask
 currentOrders :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => StdM e [OrderT e]
 currentOrders = currentOrders' =<< ask
 
-placeLimitOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderTypeT e -> OrderAmountT e -> OrderAmountT e -> StdM e (OrderResponseT e)
+placeLimitOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderTypeT e -> OrderAmountT e -> OrderAmountT e -> StdM e (OrderIDT e)
 placeLimitOrder typ vol price = ask >>= \e -> placeLimitOrder' e typ vol price
 
-placeMarketOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderTypeT e -> OrderAmountT e -> StdM e (OrderResponseT e)
+placeMarketOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderTypeT e -> OrderAmountT e -> StdM e (OrderIDT e)
 placeMarketOrder typ vol = ask >>= \e -> placeMarketOrder' e typ vol
 
-cancelOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderT e -> StdM e ()
-cancelOrder o = flip cancelOrder' o =<< ask
+cancelOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderIDT e -> StdM e ()
+cancelOrder oid = flip cancelOrder' oid =<< ask
 
 balances :: (Exchange e, ExchangeM e ~ StdM e, BalancesP e) => StdM e (BalancesT e)
 balances = balances' =<< ask

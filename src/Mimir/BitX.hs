@@ -87,7 +87,7 @@ instance OrderP BitX where
     type OrderTypeT BitX = OrderType
     type OrderAmountT BitX = Double
     type OrderT BitX = Order
-    type OrderResponseT BitX = OrderResponse
+    type OrderIDT BitX = String
     currentOrders' _ = do
         bURL <- marketURL "listorders"
         req <- buildReq (bURL <> "&state=PENDING") "GET" [] noBody
@@ -97,16 +97,17 @@ instance OrderP BitX where
         bURL <- viewStdM bxBaseURL
         params <- mkLimitOrder typ vol price
         req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "postorder") "POST" [] noBody
-        res <- httpJSON req
-        return res
+        (OrderResponse oid) <- httpJSON req
+        return oid
     placeMarketOrder' _ typ amount = do
         bURL <- viewStdM bxBaseURL
         params <- mkMarketOrder typ amount
         req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "marketorder") "POST" [] noBody
-        httpJSON req
-    cancelOrder' _ o = do
+        (OrderResponse oid) <- httpJSON req
+        return oid
+    cancelOrder' _ oid = do
         bURL <- viewStdM bxBaseURL
-        req <- fmap (urlEncodedBody [("order_id", B.pack . view oID $ o)]) $ buildReq (bURL <> "stoporder") "POST" [] noBody
+        req <- fmap (urlEncodedBody [("order_id", B.pack $ oid)]) $ buildReq (bURL <> "stoporder") "POST" [] noBody
         http' req
 
 ---

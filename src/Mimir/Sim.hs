@@ -119,7 +119,7 @@ satisfyPLO ob stat plo
 satisfyLimitBuy :: OrderBook -> PendingLimitOrder -> SimState -> SimState
 satisfyLimitBuy ob plo stat = case buyPrice vol ob of
     Nothing -> stat
-    Just price -> case (price < maxCost) of
+    Just price -> case (price <= maxCost) of
         True -> stat & ssPendingLimitOrders %~ stripOrder & ssCurrencyBalance %~ (+ (maxCost - price)) & ssCommodityBalance %~ (+ vol)
         False -> stat
     where
@@ -132,14 +132,14 @@ satisfyLimitBuy ob plo stat = case buyPrice vol ob of
 satisfyLimitSell :: OrderBook -> PendingLimitOrder -> SimState -> SimState
 satisfyLimitSell ob plo stat = case sellPrice vol ob of
     Nothing -> stat
-    Just price -> case (price > minCost) of
+    Just price -> case (price >= minPrice) of
         True -> stat & ssPendingLimitOrders %~ stripOrder & ssCurrencyBalance %~ (+ price)
         False -> stat
     where
     oid = _ploID plo
     vol = _ploVolume plo
     unitPrice = _ploUnitPrice plo
-    minCost = vol * unitPrice
+    minPrice = vol * unitPrice
     stripOrder = (filter $ (/=oid) . _ploID)
 
 satisfyPMO :: OrderBook -> SimState -> PendingMarketOrder -> SimState
@@ -275,11 +275,11 @@ instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), TradeHistoryP 
 --- Order
 ---
 
-instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso OrderType (OrderTypeT e), Iso Double (OrderAmountT e), Iso OrderResponse (OrderResponseT e)) => OrderP (Sim e) where
+instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso OrderType (OrderTypeT e), Iso Double (OrderAmountT e), Iso String (OrderIDT e)) => OrderP (Sim e) where
     type OrderTypeT (Sim e) = OrderTypeT e
     type OrderAmountT (Sim e) = OrderAmountT e
     type OrderT (Sim e) = OrderT e
-    type OrderResponseT (Sim e) = OrderResponseT e
+    type OrderIDT (Sim e) = OrderIDT e
     currentOrders' sim = do
         stat <- readState sim
         let plos = view ssPendingLimitOrders stat
@@ -293,7 +293,7 @@ instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso O
         let plo = mkPLO typ nid vol price tmeMS
         ok <- operateState (addPLO plo) sim
         case ok of
-            True ->  return . isoF $ OrderResponse nid
+            True ->  return $ isoF nid
             False -> lift . left $ StdErr "Insufficient balance for this trade"
     placeMarketOrder' sim etyp eamount = do
         let typ = isoG etyp
@@ -303,9 +303,9 @@ instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso O
         let pmo = PendingMarketOrder typ nid tmeMS amount
         ok <- operateState (addPMO pmo) sim
         case ok of
-            True ->  return . isoF $ OrderResponse nid
+            True ->  return $ isoF nid
             False -> lift . left $ StdErr "Insufficient balance for this trade"
-    cancelOrder' sim eo = modifyState (cancelO . view oID $ isoG eo) sim
+    cancelOrder' sim oid = modifyState (cancelO $ isoG oid) sim
 
 addPLO :: PendingLimitOrder -> SimState -> (Bool, SimState)
 addPLO plo stat
