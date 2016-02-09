@@ -370,7 +370,9 @@ cancelO oid stat
         (Just ASK) -> ssCommodityBalance
     amount = case plo of
         Nothing -> 0
-        Just o -> _ploVolume o * _ploUnitPrice o
+        (Just o) -> case _ploType o of
+            BID -> _ploVolume o * _ploUnitPrice o
+            ASK -> _ploVolume o
 
 newID :: SimState -> (String, SimState)
 newID stat = (show nid, set ssIDGen nid stat)

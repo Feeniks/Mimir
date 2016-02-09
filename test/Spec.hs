@@ -57,7 +57,37 @@ testBalances sim = do
     threadDelay 1000
 
     (Right res9) <- reifyIO balances sim
-    assertBool ("balances should be equal" ++ show res9) $ balancesEqual res9 (Balances 64.9 1.3)
+    assertBool "balances should be equal" $ balancesEqual res9 (Balances 64.9 1.3)
+
+    res10 <- reifyIO (placeMarketOrder BID 60) sim
+    assertBool "expected success when placing market buy of value lower than currency balance" . not $ isLeft res10
+
+    threadDelay 1000
+
+    (Right res11) <- reifyIO balances sim
+    assertBool "balances should be equal" $ balancesEqual res11 (Balances 4.9 1.8454545)
+
+    res12 <- reifyIO (placeLimitOrder ASK 1 99) sim
+    assertBool "expected success when placing limit sell of value lower than commodity balance" . not $ isLeft res12
+
+    threadDelay 1000
+
+    (Right res13) <- reifyIO balances sim
+    assertBool "balances should be equal" $ balancesEqual res13 (Balances 104.525 0.8454545)
+
+    res14 <- reifyIO (placeLimitOrder ASK 0.5454545 105) sim
+    assertBool "expected success when placing limit sell of value lower than commodity balance" . not $ isLeft res14
+
+    threadDelay 1000
+
+    (Right res15) <- reifyIO balances sim
+    assertBool "balances should be equal" $ balancesEqual res15 (Balances 104.525 0.3)
+
+    let oid2 = fromRight res14
+    reifyIO (cancelOrder oid2) sim
+
+    (Right res16) <- reifyIO balances sim
+    assertBool "balances should be equal" $ balancesEqual res16 (Balances 104.525 0.8454545)
 
     return ()
 
