@@ -80,47 +80,41 @@ instance TradeHistoryP BitX where
         return tx
 
 ---
---- Order
+--- Spot
 ---
 
-instance OrderP BitX where
-    type OrderTypeT BitX = OrderType
-    type OrderAmountT BitX = Double
-    type OrderT BitX = Order
-    type OrderIDT BitX = String
-    currentOrders' _ = do
+instance SpotP BitX where
+    type SpotBalancesT BitX = Balances
+    type SpotOrderTypeT BitX = OrderType
+    type SpotOrderAmountT BitX = Double
+    type SpotOrderT BitX = Order
+    type SpotOrderIDT BitX = String
+    spotBalances' _ = do
+        url <- marketURL "balance"
+        req <- buildReq url "GET" [] noBody
+        (Accounts ax) <- httpJSON req
+        toBalances ax
+    currentSpotOrders' _ = do
         bURL <- marketURL "listorders"
         req <- buildReq (bURL <> "&state=PENDING") "GET" [] noBody
         (Orders mox) <- httpJSON req
         maybe (return []) return mox
-    placeLimitOrder' _ typ vol price = do
+    placeLimitSpotOrder' _ typ vol price = do
         bURL <- viewStdM bxBaseURL
         params <- mkLimitOrder typ vol price
         req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "postorder") "POST" [] noBody
         (OrderResponse oid) <- httpJSON req
         return oid
-    placeMarketOrder' _ typ amount = do
+    placeMarketSpotOrder' _ typ amount = do
         bURL <- viewStdM bxBaseURL
         params <- mkMarketOrder typ amount
         req <- fmap (urlEncodedBody params) $ buildReq (bURL <> "marketorder") "POST" [] noBody
         (OrderResponse oid) <- httpJSON req
         return oid
-    cancelOrder' _ oid = do
+    cancelSpotOrder' _ oid = do
         bURL <- viewStdM bxBaseURL
         req <- fmap (urlEncodedBody [("order_id", B.pack $ oid)]) $ buildReq (bURL <> "stoporder") "POST" [] noBody
         http' req
-
----
---- Balances
----
-
-instance BalancesP BitX where
-    type BalancesT BitX = Balances
-    balances' _ = do
-        url <- marketURL "balance"
-        req <- buildReq url "GET" [] noBody
-        (Accounts ax) <- httpJSON req
-        toBalances ax
 
 ---
 --- Utility

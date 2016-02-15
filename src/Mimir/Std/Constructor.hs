@@ -68,23 +68,17 @@ instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), TradeHistoryP 
     tradeHistory' = runExchange tradeHistory'
 
 ---
---- Order
+--- Spot
 ---
 
-instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), OrderP e) => OrderP (Std e) where
-    type OrderTypeT (Std e) = OrderTypeT e
-    type OrderAmountT (Std e) = OrderAmountT e
-    type OrderT (Std e) = OrderT e
-    type OrderIDT (Std e) = OrderIDT e
-    currentOrders' = runExchange currentOrders'
-    placeLimitOrder' s typ vol price = runExchange (\e -> placeLimitOrder' e typ vol price) s
-    placeMarketOrder' s typ amount = runExchange (\e -> placeMarketOrder' e typ amount) s
-    cancelOrder' s o = runExchange (\e -> cancelOrder' e o) s
-
----
---- Balances
----
-
-instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), BalancesP e) => BalancesP (Std e) where
-    type BalancesT (Std e) = BalancesT e
-    balances' = runExchange balances'
+instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), SpotP e) => SpotP (Std e) where
+    type SpotBalancesT (Std e) = SpotBalancesT e
+    type SpotOrderTypeT (Std e) = SpotOrderTypeT e
+    type SpotOrderAmountT (Std e) = SpotOrderAmountT e
+    type SpotOrderT (Std e) = SpotOrderT e
+    type SpotOrderIDT (Std e) = SpotOrderIDT e
+    spotBalances' = runExchange spotBalances'
+    currentSpotOrders' = runExchange currentSpotOrders'
+    placeLimitSpotOrder' s typ vol price = runExchange (\e -> placeLimitSpotOrder' e typ vol price) s
+    placeMarketSpotOrder' s typ amount = runExchange (\e -> placeMarketSpotOrder' e typ amount) s
+    cancelSpotOrder' s o = runExchange (\e -> cancelSpotOrder' e o) s

@@ -27,19 +27,17 @@ class TradeHistoryP e where
     type TradeT e :: *
     tradeHistory' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) [TradeT e]
 
-class OrderP e where
-    type OrderTypeT e :: *
-    type OrderAmountT e :: *
-    type OrderT e :: *
-    type OrderIDT e :: *
-    currentOrders' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) [OrderT e]
-    placeLimitOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderTypeT e -> OrderAmountT e -> OrderAmountT e -> (ExchangeM e) (OrderIDT e)
-    placeMarketOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderTypeT e -> OrderAmountT e -> (ExchangeM e) (OrderIDT e)
-    cancelOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> OrderIDT e -> (ExchangeM e) ()
-
-class BalancesP e where
-    type BalancesT e :: *
-    balances' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) (BalancesT e)
+class SpotP e where
+    type SpotBalancesT e :: *
+    type SpotOrderTypeT e :: *
+    type SpotOrderAmountT e :: *
+    type SpotOrderT e :: *
+    type SpotOrderIDT e :: *
+    spotBalances' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) (SpotBalancesT e)
+    currentSpotOrders' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) [SpotOrderT e]
+    placeLimitSpotOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> SpotOrderTypeT e -> SpotOrderAmountT e -> SpotOrderAmountT e -> (ExchangeM e) (SpotOrderIDT e)
+    placeMarketSpotOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> SpotOrderTypeT e -> SpotOrderAmountT e -> (ExchangeM e) (SpotOrderIDT e)
+    cancelSpotOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> SpotOrderIDT e -> (ExchangeM e) ()
 
 class Iso a b where
     isoF :: a -> b

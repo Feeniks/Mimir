@@ -272,19 +272,25 @@ instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), TradeHistoryP 
 
 
 ---
---- Order
+--- Spot
 ---
 
-instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso OrderType (OrderTypeT e), Iso Double (OrderAmountT e), Iso String (OrderIDT e)) => OrderP (Sim e) where
-    type OrderTypeT (Sim e) = OrderTypeT e
-    type OrderAmountT (Sim e) = OrderAmountT e
-    type OrderT (Sim e) = OrderT e
-    type OrderIDT (Sim e) = OrderIDT e
-    currentOrders' sim = do
+instance (Exchange e, Monad (ExchangeM e), SpotP e, Iso Balances (SpotBalancesT e), Iso Order (SpotOrderT e), Iso OrderType (SpotOrderTypeT e), Iso Double (SpotOrderAmountT e), Iso String (SpotOrderIDT e)) => SpotP (Sim e) where
+    type SpotBalancesT (Sim e) = SpotBalancesT e
+    type SpotOrderTypeT (Sim e) = SpotOrderTypeT e
+    type SpotOrderAmountT (Sim e) = SpotOrderAmountT e
+    type SpotOrderT (Sim e) = SpotOrderT e
+    type SpotOrderIDT (Sim e) = SpotOrderIDT e
+    spotBalances' sim = do
+        stat <- readState sim
+        let cur = _ssCurrencyBalance stat
+        let com = _ssCommodityBalance stat
+        return . isoF $ Balances cur com
+    currentSpotOrders' sim = do
         stat <- readState sim
         let plos = view ssPendingLimitOrders stat
         return . fmap isoF $ fmap toOrder plos
-    placeLimitOrder' sim etyp evol eprice = do
+    placeLimitSpotOrder' sim etyp evol eprice = do
         let typ = isoG etyp
         let vol = isoG evol
         let price = isoG eprice
@@ -295,7 +301,7 @@ instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso O
         case ok of
             True ->  return $ isoF nid
             False -> lift . left $ StdErr "Insufficient balance for this trade"
-    placeMarketOrder' sim etyp eamount = do
+    placeMarketSpotOrder' sim etyp eamount = do
         let typ = isoG etyp
         let amount = isoG eamount
         nid <- operateState newID sim
@@ -305,7 +311,7 @@ instance (Exchange e, Monad (ExchangeM e), OrderP e, Iso Order (OrderT e), Iso O
         case ok of
             True ->  return $ isoF nid
             False -> lift . left $ StdErr "Insufficient balance for this trade"
-    cancelOrder' sim oid = modifyState (cancelO $ isoG oid) sim
+    cancelSpotOrder' sim oid = modifyState (cancelO $ isoG oid) sim
 
 addPLO :: PendingLimitOrder -> SimState -> (Bool, SimState)
 addPLO plo stat
@@ -377,15 +383,3 @@ cancelO oid stat
 newID :: SimState -> (String, SimState)
 newID stat = (show nid, set ssIDGen nid stat)
     where nid = view ssIDGen stat + 1
-
----
---- Balances
----
-
-instance (Exchange e, Monad (ExchangeM e), BalancesP e, Iso Balances (BalancesT e)) => BalancesP (Sim e) where
-    type BalancesT (Sim e) = BalancesT e
-    balances' sim = do
-        stat <- readState sim
-        let cur = _ssCurrencyBalance stat
-        let com = _ssCommodityBalance stat
-        return . isoF $ Balances cur com

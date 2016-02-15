@@ -11,11 +11,11 @@ module Mimir.Std(
     candles,
     orderBook,
     tradeHistory,
-    currentOrders,
-    placeLimitOrder,
-    placeMarketOrder,
-    cancelOrder,
-    balances
+    spotBalances,
+    currentSpotOrders,
+    placeLimitSpotOrder,
+    placeMarketSpotOrder,
+    cancelSpotOrder
 ) where
 
 import Mimir.Types
@@ -47,19 +47,19 @@ orderBook = orderBook' =<< ask
 tradeHistory :: (Exchange e, ExchangeM e ~ StdM e, TradeHistoryP e) => StdM e [TradeT e]
 tradeHistory = tradeHistory' =<< ask
 
-currentOrders :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => StdM e [OrderT e]
-currentOrders = currentOrders' =<< ask
+spotBalances :: (Exchange e, ExchangeM e ~ StdM e, SpotP e) => StdM e (SpotBalancesT e)
+spotBalances = spotBalances' =<< ask
 
-placeLimitOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderTypeT e -> OrderAmountT e -> OrderAmountT e -> StdM e (OrderIDT e)
-placeLimitOrder typ vol price = ask >>= \e -> placeLimitOrder' e typ vol price
+currentSpotOrders :: (Exchange e, ExchangeM e ~ StdM e, SpotP e) => StdM e [SpotOrderT e]
+currentSpotOrders = currentSpotOrders' =<< ask
 
-placeMarketOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderTypeT e -> OrderAmountT e -> StdM e (OrderIDT e)
-placeMarketOrder typ vol = ask >>= \e -> placeMarketOrder' e typ vol
+placeLimitSpotOrder :: (Exchange e, ExchangeM e ~ StdM e, SpotP e) => SpotOrderTypeT e -> SpotOrderAmountT e -> SpotOrderAmountT e -> StdM e (SpotOrderIDT e)
+placeLimitSpotOrder typ vol price = ask >>= \e -> placeLimitSpotOrder' e typ vol price
 
-cancelOrder :: (Exchange e, ExchangeM e ~ StdM e, OrderP e) => OrderIDT e -> StdM e ()
-cancelOrder oid = flip cancelOrder' oid =<< ask
+placeMarketSpotOrder :: (Exchange e, ExchangeM e ~ StdM e, SpotP e) => SpotOrderTypeT e -> SpotOrderAmountT e -> StdM e (SpotOrderIDT e)
+placeMarketSpotOrder typ vol = ask >>= \e -> placeMarketSpotOrder' e typ vol
 
-balances :: (Exchange e, ExchangeM e ~ StdM e, BalancesP e) => StdM e (BalancesT e)
-balances = balances' =<< ask
+cancelSpotOrder :: (Exchange e, ExchangeM e ~ StdM e, SpotP e) => SpotOrderIDT e -> StdM e ()
+cancelSpotOrder oid = flip cancelSpotOrder' oid =<< ask
 
 viewStdM lens = ask >>= return . view lens

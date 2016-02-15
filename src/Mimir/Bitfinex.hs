@@ -52,15 +52,23 @@ instance TickerP Bitfinex where
         publicApi $ "pubticker/" ++ sym
 
 ---
---- Balances
+--- Spot
 ---
 
-instance BalancesP Bitfinex where
-    type BalancesT Bitfinex = Balances
-    balances' _ = do
+instance SpotP Bitfinex where
+    type SpotBalancesT Bitfinex = Balances
+    type SpotOrderTypeT Bitfinex = OrderType
+    type SpotOrderAmountT Bitfinex = Double
+    type SpotOrderT Bitfinex = Order
+    type SpotOrderIDT Bitfinex = String
+    spotBalances' _ = do
         curSym <- viewStdM bfCurrencySymbol
         comSym <- viewStdM bfCommoditySymbol
         fmap (toBalances curSym comSym) $ authApi "balances" (Nothing :: Maybe ())
+    currentSpotOrders' = undefined
+    placeLimitSpotOrder' = undefined
+    placeMarketSpotOrder' = undefined
+    cancelSpotOrder' = undefined
 
 toBalances :: String -> String -> [BFBalance] -> Balances
 toBalances curSym comSym = uncurry Balances . foldl sumBX (0, 0)

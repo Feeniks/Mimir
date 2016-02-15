@@ -73,54 +73,48 @@ instance TradeHistoryP OKCoin where
     tradeHistory' _ = apiReq "trades.do" []
 
 ---
---- Balances
+--- Spot
 ---
 
-instance BalancesP OKCoin where
-    type BalancesT OKCoin = Balances
-    balances' _ = do
+instance SpotP OKCoin where
+    type SpotBalancesT OKCoin = Balances
+    type SpotOrderTypeT OKCoin = OrderType
+    type SpotOrderAmountT OKCoin = Double
+    type SpotOrderT OKCoin = Order
+    type SpotOrderIDT OKCoin = String
+    spotBalances' _ = do
         (OKBalances bx) <- apiReqAuth "userinfo.do" []
         cur <- getBalance ocCurrencySymbol bx
         com <- getBalance ocCommoditySymbol bx
         return $ Balances cur com
-
-getBalance :: Lens OKCoin OKCoin String String -> [(String, Double)] -> StdM OKCoin Double
-getBalance lens bx = do
-    csym <- viewStdM lens
-    let mv = M.lookup csym $ M.fromList bx
-    maybe (return 0.0) (return) mv
-
----
---- Order
----
-
-instance OrderP OKCoin where
-    type OrderTypeT OKCoin = OrderType
-    type OrderAmountT OKCoin = Double
-    type OrderT OKCoin = Order
-    type OrderIDT OKCoin = String
-    currentOrders' _ = do
+    currentSpotOrders' _ = do
         sym <- viewStdM ocSymbol
         (Orders ox) <- apiReqAuth "order_history.do" [("symbol", sym), ("status", "0"), ("current_page", "0"), ("page_length", "200")]
         return ox
-    placeLimitOrder' _ typ vol price = do
+    placeLimitSpotOrder' _ typ vol price = do
         sym <- viewStdM ocSymbol
         (OrderResponse oid) <- apiReqAuth "trade.do" [("symbol", sym), ("type", otyp $ typ), ("price", encNum $ price), ("amount", encNum $ vol)]
         return oid
         where
         otyp BID = "buy"
         otyp ASK = "sell"
-    placeMarketOrder' _ BID amount = do
+    placeMarketSpotOrder' _ BID amount = do
         sym <- viewStdM ocSymbol
         (OrderResponse oid) <- apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("price", encNum amount)]
         return oid
-    placeMarketOrder' _ ASK amount = do
+    placeMarketSpotOrder' _ ASK amount = do
         sym <- viewStdM ocSymbol
         (OrderResponse oid) <- apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("amount", encNum amount)]
         return oid
-    cancelOrder' _ oid = do
+    cancelSpotOrder' _ oid = do
         sym <- viewStdM ocSymbol
         apiReqAuth "cancel_order.do" [("symbol", sym), ("order_id", oid)]
+
+getBalance :: Lens OKCoin OKCoin String String -> [(String, Double)] -> StdM OKCoin Double
+getBalance lens bx = do
+    csym <- viewStdM lens
+    let mv = M.lookup csym $ M.fromList bx
+    maybe (return 0.0) (return) mv
 
 ---
 --- Utility
