@@ -6,6 +6,7 @@ module Mimir.Std(
     module Mimir.Std.HTTP,
     reifyStdM,
     viewStdM,
+    throwStd,
     ticker,
     candles,
     orderBook,
@@ -23,12 +24,16 @@ import Mimir.Std.HTTP
 
 import Control.Lens (view)
 import Control.Monad
+import Control.Monad.Except (throwError)
 import Control.Monad.Reader
 import Control.Monad.Trans.Either
 import Data.Proxy
 
 reifyStdM :: (Exchange e, ExchangeM e ~ StdM e) => StdM e a -> e -> IO (Either StdErr a)
 reifyStdM act = runEitherT . runReaderT act
+
+throwStd :: String -> StdM e a
+throwStd = throwError . StdErr
 
 ticker :: (Exchange e, ExchangeM e ~ StdM e, TickerP e) => StdM e (TickerT e)
 ticker = ticker' =<< ask

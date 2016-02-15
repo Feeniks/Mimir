@@ -1,6 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Mimir.BitX(
@@ -15,13 +14,14 @@ import Mimir.BitX.Instances
 
 import Control.Lens (view)
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.Aeson (ToJSON, encode)
 import Data.Monoid
 import Network.HTTP.Conduit (urlEncodedBody)
 import Numeric (showFFloat)
 
-instance ToJSON b => Body b where
-    encodeBody = encode
+instance Body BL.ByteString where
+    encodeBody = id
 
 instance HasManager BitX where
     getManager = view bxManager
@@ -156,5 +156,5 @@ mkMarketOrder typ amount = do
 encNum :: Double -> B.ByteString
 encNum n = B.pack $ showFFloat (Just 6) n ""
 
-noBody :: Maybe ()
+noBody :: Maybe BL.ByteString
 noBody = Nothing
