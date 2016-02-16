@@ -25,7 +25,7 @@ import Data.Proxy
 instance MarketDataP BitX where
     runMarketData _ = runProgram marketData'
 
-marketData' :: (Member (Lift IO) r, SetMember Lift (Lift IO) r, Member (Reader BitX) r, Member (Exc String) r) => MarketDataAPI a -> Eff r a
+marketData' :: (Member (Lift IO) r, SetMember Lift (Lift IO) r, Member (Reader BitX) r, Member (Exc String) r) => MarketData a -> Eff r a
 marketData' TickerF = publicAPI "ticker"
 marketData' OrderBookF = publicAPI "orderbook"
 
