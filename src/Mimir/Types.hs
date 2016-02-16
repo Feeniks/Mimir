@@ -4,9 +4,9 @@ module Mimir.Types where
 
 import Control.Lens.TH
 
----
---- Standard data types
----
+type Volume = Double
+
+type UnitPrice = Double
 
 data Ticker = Ticker {
     _tiTimeUTCMS :: Int,
@@ -53,7 +53,7 @@ data Order = Order {
 
 data OrderType = ASK | BID deriving (Read,Show,Eq)
 
-data OrderResponse = OrderResponse String deriving (Eq, Show)
+data OrderResponse = OrderResponse { orID :: String } deriving (Eq, Show)
 
 data Balances = Balances {
     _bCurrency :: Double,
