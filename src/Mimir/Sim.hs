@@ -6,14 +6,14 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Mimir.Sim(
-    module Mimir.Std,
+    module Mimir.Types,
     Sim,
     createSim,
     destroySim
 ) where
 
+import Mimir.API
 import Mimir.Types
-import Mimir.Std
 import Mimir.Sim.Types
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
@@ -21,6 +21,7 @@ import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar
 import Control.Lens (Lens, over, set, view, (&), (.~), (%~))
 import Control.Monad
+import Control.Monad.Reader (ask)
 import Control.Monad.Trans
 import Control.Monad.Trans.Either (left)
 import Data.Maybe (catMaybes, fromJust, isJust, listToMaybe)
@@ -31,7 +32,7 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 --- Create a Sim
 ---
 
-createSim :: (Exchange e, Monad (ExchangeM e), OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => Int -> Double -> Double -> e -> IO (Sim e)
+createSim :: (OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => Int -> Double -> Double -> e -> IO (Sim e)
 createSim cycleDelayMS currencyBalance commodityBalance e = do
     tmeMS <- fmap (round . (* 1000)) $ getPOSIXTime
     let stat = SimState {
@@ -61,7 +62,7 @@ destroySim = killThread . view siManagerThreadID
 --- Run a Sim
 ---
 
-runSim :: (Exchange e, Monad (ExchangeM e), OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => Int -> TVar SimState -> e -> IO ()
+runSim :: (OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => Int -> TVar SimState -> e -> IO ()
 runSim cycleDelayMS tstat e = forever $ do
     stat <- atomically $ readTVar tstat
     let plos = _ssPendingLimitOrders stat
@@ -71,9 +72,9 @@ runSim cycleDelayMS tstat e = forever $ do
     atomically $ modifyTVar tstat (set ssUpdatedUTCMS tmeMS)
     threadDelay $ cycleDelayMS * 1000
 
-simCycle :: (Exchange e, Monad (ExchangeM e), OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => TVar SimState -> e -> IO ()
+simCycle :: (OrderBookP e, TradeHistoryP e, Iso OrderBook (OrderBookT e), Iso Trade (TradeT e)) => TVar SimState -> e -> IO ()
 simCycle tstat e = do
-    res <- reifyIO (orderBook' e >>= \ob -> tradeHistory' e >>= \tx -> return (isoG ob, fmap isoG tx)) e
+    res <- runTradeM (orderBook >>= \ob -> tradeHistory >>= \tx -> return (isoG ob, fmap isoG tx)) e
     case res of
         Left _ -> return () --TODO: throw?
         Right (ob, tx) -> atomically $ modifyTVar tstat (matchOrders ob tx)
@@ -204,93 +205,87 @@ priceFor vol price ex
 --- Utility
 ---
 
-runExchange :: (Exchange e, Iso StdErr (ErrorT e)) => (e -> ExchangeM e a) -> Sim e -> StdM (Sim e) a
-runExchange f sim = do
-    let ex = view siExchange sim
-    res <- liftIO $ reifyIO (f ex) ex
+runExchange :: TradeM e a -> TradeM (Sim e) a
+runExchange f = do
+    ex <- viewTradeM siExchange
+    res <- liftIO $ runTradeM f ex
     case res of
-        Left e -> lift . left $ isoG e
+        Left e -> lift $ left e
         Right r -> return r
 
-readState :: Exchange e => Sim e -> StdM (Sim e) SimState
+readState :: Sim e -> TradeM (Sim e) SimState
 readState = liftIO . atomically . readTVar . view siState
 
-viewState :: Exchange e => Lens SimState SimState r r -> Sim e -> StdM (Sim e) r
+viewState :: Lens SimState SimState r r -> Sim e -> TradeM (Sim e) r
 viewState lens = liftIO . atomically . fmap (view lens) . readTVar . view siState
 
-operateState :: Exchange e => (SimState -> (a, SimState)) -> Sim e -> StdM (Sim e) a
+operateState :: (SimState -> (a, SimState)) -> Sim e -> TradeM (Sim e) a
 operateState f sim = liftIO . atomically $ do
     let tv = view siState sim
     (res, stat) <- fmap f $ readTVar tv
     writeTVar tv stat
     return res
 
-modifyState :: Exchange e => (SimState -> SimState) -> Sim e -> StdM (Sim e) ()
+modifyState :: (SimState -> SimState) -> Sim e -> TradeM (Sim e) ()
 modifyState f = operateState $ (\s -> ((), f s))
-
----
---- Exchange instance
----
-
-instance Exchange e => Exchange (Sim e) where
-    type ExchangeM (Sim e) = StdM (Sim e)
-    type ErrorT (Sim e) = StdErr
-    reifyIO = reifyStdM
 
 ---
 --- Ticker
 ---
 
-instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), TickerP e) => TickerP (Sim e) where
+instance TickerP e => TickerP (Sim e) where
     type TickerT (Sim e) = TickerT e
-    ticker' = runExchange ticker'
+    ticker = runExchange ticker
 
 ---
 --- Candles
 ---
 
-instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), CandlesP e) => CandlesP (Sim e) where
+instance CandlesP e => CandlesP (Sim e) where
     type CandleIntervalT (Sim e) = CandleIntervalT e
     type CandleT (Sim e) = CandleT e
-    candles' t iv = runExchange (\e -> candles' e iv) t
+    candles = runExchange . candles
 
 ---
 --- OrderBook
 ---
 
-instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), OrderBookP e) => OrderBookP (Sim e) where
+instance OrderBookP e => OrderBookP (Sim e) where
     type OrderBookT (Sim e) = OrderBookT e
-    orderBook' = runExchange orderBook'
+    orderBook = runExchange orderBook
 
 ---
 --- TradeHistory
 ---
 
-instance (Exchange e, Monad (ExchangeM e), Iso StdErr (ErrorT e), TradeHistoryP e) => TradeHistoryP (Sim e) where
+instance TradeHistoryP e => TradeHistoryP (Sim e) where
     type TradeT (Sim e) = TradeT e
-    tradeHistory' = runExchange tradeHistory'
+    tradeHistory = runExchange tradeHistory
 
 
 ---
 --- Spot
 ---
 
-instance (Exchange e, Monad (ExchangeM e), SpotP e, Iso Balances (SpotBalancesT e), Iso Order (SpotOrderT e), Iso OrderType (SpotOrderTypeT e), Iso Double (SpotOrderAmountT e), Iso String (SpotOrderIDT e)) => SpotP (Sim e) where
+instance (SpotP e, Iso Balances (SpotBalancesT e), Iso Order (SpotOrderT e), Iso OrderType (SpotOrderTypeT e), Iso Double (SpotOrderAmountT e), Iso String (SpotOrderIDT e)) => SpotP (Sim e) where
     type SpotBalancesT (Sim e) = SpotBalancesT e
     type SpotOrderTypeT (Sim e) = SpotOrderTypeT e
     type SpotOrderAmountT (Sim e) = SpotOrderAmountT e
     type SpotOrderT (Sim e) = SpotOrderT e
     type SpotOrderIDT (Sim e) = SpotOrderIDT e
-    spotBalances' sim = do
+    spotBalances = do
+        sim <- ask
         stat <- readState sim
         let cur = _ssCurrencyBalance stat
         let com = _ssCommodityBalance stat
         return . isoF $ Balances cur com
-    currentSpotOrders' sim = do
+    currentSpotOrders = do
+        sim <- ask
         stat <- readState sim
         let plos = view ssPendingLimitOrders stat
         return . fmap isoF $ fmap toOrder plos
-    placeLimitSpotOrder' sim etyp evol eprice = do
+    placeLimitSpotOrder etyp evol eprice = do
+        sim <- ask
         let typ = isoG etyp
         let vol = isoG evol
         let price = isoG eprice
@@ -300,8 +295,9 @@ instance (Exchange e, Monad (ExchangeM e), SpotP e, Iso Balances (SpotBalancesT 
         ok <- operateState (addPLO plo) sim
         case ok of
             True ->  return $ isoF nid
-            False -> lift . left $ StdErr "Insufficient balance for this trade"
-    placeMarketSpotOrder' sim etyp eamount = do
+            False -> lift . left $ TradeErr "Insufficient balance for this trade"
+    placeMarketSpotOrder etyp eamount = do
+        sim <- ask
         let typ = isoG etyp
         let amount = isoG eamount
         nid <- operateState newID sim
@@ -310,8 +306,8 @@ instance (Exchange e, Monad (ExchangeM e), SpotP e, Iso Balances (SpotBalancesT 
         ok <- operateState (addPMO pmo) sim
         case ok of
             True ->  return $ isoF nid
-            False -> lift . left $ StdErr "Insufficient balance for this trade"
-    cancelSpotOrder' sim oid = modifyState (cancelO $ isoG oid) sim
+            False -> lift . left $ TradeErr "Insufficient balance for this trade"
+    cancelSpotOrder oid = ask >>= modifyState (cancelO $ isoG oid)
 
 addPLO :: PendingLimitOrder -> SimState -> (Bool, SimState)
 addPLO plo stat

@@ -1,48 +1,69 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Mimir.Types where
 
-class Exchange e where
-    type ExchangeM e :: * -> *
-    type ErrorT e :: *
-    reifyIO :: (ExchangeM e) a -> e -> IO (Either (ErrorT e) a)
+import Control.Lens.TH
 
-class TickerP e where
-    type TickerT e :: *
-    ticker' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) (TickerT e)
+---
+--- Standard data types
+---
 
-class CandlesP e where
-    type CandleIntervalT e :: *
-    type CandleT e :: *
-    candles' :: (Exchange e, Monad (ExchangeM e)) => e -> (CandleIntervalT e) -> (ExchangeM e) [CandleT e]
+data Ticker = Ticker {
+    _tiTimeUTCMS :: Int,
+    _tiAsk :: Double,
+    _tiBid :: Double,
+    _tiLast :: Double
+} deriving (Eq, Show)
 
-class OrderBookP e where
-    type OrderBookT e :: *
-    orderBook' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) (OrderBookT e)
+type CandleInterval = Int
 
-class TradeHistoryP e where
-    type TradeT e :: *
-    tradeHistory' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) [TradeT e]
+data Candle = Candle {
+    _caTimeUTC :: Int,
+    _caOpen :: Double,
+    _caClose :: Double,
+    _caHigh :: Double,
+    _caLow :: Double,
+    _caVolume :: Double
+} deriving (Eq, Show)
 
-class SpotP e where
-    type SpotBalancesT e :: *
-    type SpotOrderTypeT e :: *
-    type SpotOrderAmountT e :: *
-    type SpotOrderT e :: *
-    type SpotOrderIDT e :: *
-    spotBalances' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) (SpotBalancesT e)
-    currentSpotOrders' :: (Exchange e, Monad (ExchangeM e)) => e -> (ExchangeM e) [SpotOrderT e]
-    placeLimitSpotOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> SpotOrderTypeT e -> SpotOrderAmountT e -> SpotOrderAmountT e -> (ExchangeM e) (SpotOrderIDT e)
-    placeMarketSpotOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> SpotOrderTypeT e -> SpotOrderAmountT e -> (ExchangeM e) (SpotOrderIDT e)
-    cancelSpotOrder' :: (Exchange e, Monad (ExchangeM e)) => e -> SpotOrderIDT e -> (ExchangeM e) ()
+data OrderBook = OrderBook {
+    _obBids :: [OrderBookEntry],
+    _obAsks :: [OrderBookEntry]
+} deriving (Eq, Show)
 
-class Iso a b where
-    isoF :: a -> b
-    isoG :: b -> a
+data OrderBookEntry = OrderBookEntry {
+    _oeVolume :: Double,
+    _oePrice :: Double
+} deriving (Eq, Show)
 
-instance Iso a a where
-    isoF = id
-    isoG = id
+data Trade = Trade {
+    _trTimeUTCMS :: Int,
+    _trUnitPrice :: Double,
+    _trVolume :: Double,
+    _trType :: OrderType
+} deriving (Eq, Show)
+
+data Order = Order {
+    _oType :: OrderType,
+    _oID :: String,
+    _oTimeUTCMS :: Int,
+    _oVolume :: Double,
+    _oUnitPrice :: Double
+} deriving (Eq, Show)
+
+data OrderType = ASK | BID deriving (Read,Show,Eq)
+
+data OrderResponse = OrderResponse String deriving (Eq, Show)
+
+data Balances = Balances {
+    _bCurrency :: Double,
+    _bCommodity :: Double
+} deriving (Eq, Show)
+
+makeLenses ''Ticker
+makeLenses ''Candle
+makeLenses ''OrderBook
+makeLenses ''OrderBookEntry
+makeLenses ''Trade
+makeLenses ''Order
+makeLenses ''Balances

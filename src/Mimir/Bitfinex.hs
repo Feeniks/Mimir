@@ -4,18 +4,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Mimir.Bitfinex(
-    module Mimir.Std,
+    module Mimir.Types,
     module Mimir.Bitfinex.Types
 ) where
 
+import Mimir.API
 import Mimir.Types
-import Mimir.Std
+import Mimir.HTTP
 import Mimir.Bitfinex.Types
 import Mimir.Bitfinex.Instances
 
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar (readTVar, writeTVar)
 import Control.Lens
+import Control.Monad.Except (throwError)
 import Control.Monad.Trans (liftIO)
 import Crypto.MAC.HMAC (hmac)
 import Crypto.Hash.SHA384 (hash)
@@ -36,19 +38,14 @@ instance Body BL.ByteString where
 instance HasManager Bitfinex where
     getManager = view bfManager
 
-instance Exchange Bitfinex where
-    type ExchangeM Bitfinex = StdM Bitfinex
-    type ErrorT Bitfinex = StdErr
-    reifyIO = reifyStdM
-
 ---
 --- Ticker
 ---
 
 instance TickerP Bitfinex where
     type TickerT Bitfinex = Ticker
-    ticker' _ = do
-        sym <- viewStdM bfSymbol
+    ticker = do
+        sym <- viewTradeM bfSymbol
         publicApi $ "pubticker/" ++ sym
 
 ---
@@ -61,14 +58,14 @@ instance SpotP Bitfinex where
     type SpotOrderAmountT Bitfinex = Double
     type SpotOrderT Bitfinex = Order
     type SpotOrderIDT Bitfinex = String
-    spotBalances' _ = do
-        curSym <- viewStdM bfCurrencySymbol
-        comSym <- viewStdM bfCommoditySymbol
+    spotBalances = do
+        curSym <- viewTradeM bfCurrencySymbol
+        comSym <- viewTradeM bfCommoditySymbol
         fmap (toBalances curSym comSym) $ authApi "balances" (Nothing :: Maybe ())
-    currentSpotOrders' = undefined
-    placeLimitSpotOrder' = undefined
-    placeMarketSpotOrder' = undefined
-    cancelSpotOrder' = undefined
+    currentSpotOrders = undefined
+    placeLimitSpotOrder = undefined
+    placeMarketSpotOrder = undefined
+    cancelSpotOrder = undefined
 
 toBalances :: String -> String -> [BFBalance] -> Balances
 toBalances curSym comSym = uncurry Balances . foldl sumBX (0, 0)
@@ -82,42 +79,42 @@ toBalances curSym comSym = uncurry Balances . foldl sumBX (0, 0)
 --- Utility
 ---
 
-publicApi :: FromJSON r => String -> StdM Bitfinex r
+publicApi :: FromJSON r => String -> TradeM Bitfinex r
 publicApi path = do
-    url <- fmap (++path) $ viewStdM bfBaseURL
+    url <- fmap (++path) $ viewTradeM bfBaseURL
     req <- buildReq url "GET" [] noBody
     httpJSON req
 
-authApi :: (ToJSON b, FromJSON r) => String -> Maybe b -> StdM Bitfinex r
+authApi :: (ToJSON b, FromJSON r) => String -> Maybe b -> TradeM Bitfinex r
 authApi path mb = do
-    url <- fmap (++path) $ viewStdM bfBaseURL
+    url <- fmap (++path) $ viewTradeM bfBaseURL
     payload <- mkPayload path mb
-    key <- fmap B.pack $ viewStdM bfApiKey
-    secret <- fmap B.pack $ viewStdM bfApiSecret
+    key <- fmap B.pack $ viewTradeM bfApiKey
+    secret <- fmap B.pack $ viewTradeM bfApiSecret
     let sig = B16.encode . hmac hash 128 secret $ BL.toStrict payload
     req <- buildReq url "POST" [("X-BFX-APIKEY", key), ("X-BFX-PAYLOAD", BL.toStrict payload), ("X-BFX-SIGNATURE", sig)] noBody
     httpJSON req
 
-mkPayload :: ToJSON b => String -> Maybe b -> StdM Bitfinex BL.ByteString
+mkPayload :: ToJSON b => String -> Maybe b -> TradeM Bitfinex BL.ByteString
 mkPayload p Nothing = mkAuthPayload p $ HMap.empty
 mkPayload p (Just b) = getRequestData b >>= mkAuthPayload p
 
-mkAuthPayload :: String -> HMap.HashMap T.Text Value -> StdM Bitfinex BL.ByteString
+mkAuthPayload :: String -> HMap.HashMap T.Text Value -> TradeM Bitfinex BL.ByteString
 mkAuthPayload p m = do
     nonce <- newNonce
-    ver <- viewStdM bfVersionCode
+    ver <- viewTradeM bfVersionCode
     let m' = m & (at "nonce") .~ (Just . String . T.pack . show $ nonce) & (at "request") .~ (Just . String . T.pack $ "/" ++ ver ++ "/" ++ p)
     return . B64L.encode . encode $ Object m'
 
-getRequestData :: ToJSON b => b -> StdM Bitfinex (HMap.HashMap T.Text Value)
+getRequestData :: ToJSON b => b -> TradeM Bitfinex (HMap.HashMap T.Text Value)
 getRequestData b = do
     case (toJSON b) of
         (Object hm) -> return hm
-        _ -> throwStd "Request body must encode to a JSON Object"
+        _ -> throwError $ TradeErr "Request body must encode to a JSON Object"
 
-newNonce :: StdM Bitfinex Int
+newNonce :: TradeM Bitfinex Int
 newNonce = do
-    tv <- viewStdM bfNonce
+    tv <- viewTradeM bfNonce
     liftIO . atomically $ do
         n <- readTVar tv
         let n' = n + 1

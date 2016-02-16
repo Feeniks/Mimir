@@ -15,12 +15,10 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Mimir.Types
-                     , Mimir.Std
-                     , Mimir.Std.Types
-                     , Mimir.Std.HTTP
-                     , Mimir.Std.Func
-                     , Mimir.Std.Constructor
+  exposed-modules:     Mimir.API
+                     , Mimir.Types
+                     , Mimir.HTTP
+                     , Mimir.Func
                      , Mimir.Sim
                      , Mimir.Sim.Types
                      , Mimir.Bitfinex

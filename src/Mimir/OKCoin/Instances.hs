@@ -3,7 +3,7 @@
 module Mimir.OKCoin.Instances() where
 
 import Mimir.OKCoin.Types
-import Mimir.Std.Types
+import Mimir.Types
 
 import Control.Applicative
 import Control.Monad

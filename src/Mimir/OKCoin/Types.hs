@@ -2,7 +2,7 @@
 
 module Mimir.OKCoin.Types where
 
-import Mimir.Std.Types
+import Mimir.Types
 
 import Control.Lens.TH
 import Network.HTTP.Conduit (Manager)

@@ -2,7 +2,7 @@
 
 module Mimir.Bitfinex.Types where
 
-import Mimir.Std.Types
+import Mimir.Types
 
 import Control.Concurrent.STM.TVar (TVar)
 import Control.Lens.TH

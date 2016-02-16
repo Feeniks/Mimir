@@ -4,12 +4,13 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Mimir.OKCoin(
-    module Mimir.Std,
+    module Mimir.Types,
     module Mimir.OKCoin.Types
 ) where
 
+import Mimir.API
 import Mimir.Types
-import Mimir.Std
+import Mimir.HTTP
 import Mimir.OKCoin.Types
 import Mimir.OKCoin.Instances
 
@@ -32,18 +33,13 @@ instance Body String where
 instance HasManager OKCoin where
     getManager = view ocManager
 
-instance Exchange OKCoin where
-    type ExchangeM OKCoin = StdM OKCoin
-    type ErrorT OKCoin = StdErr
-    reifyIO = reifyStdM
-
 ---
 --- Ticker
 ---
 
 instance TickerP OKCoin where
     type TickerT OKCoin = Ticker
-    ticker' _ = apiReq "ticker.do" []
+    ticker = apiReq "ticker.do" []
 
 ---
 --- Candles
@@ -52,7 +48,7 @@ instance TickerP OKCoin where
 instance CandlesP OKCoin where
     type CandleIntervalT OKCoin = OKCandleInterval
     type CandleT OKCoin = Candle
-    candles' _ iv = do
+    candles iv = do
         (PriceHistory cx) <- apiReq "kline.do" [("type", show iv), ("size", "100")]
         return cx
 
@@ -62,7 +58,7 @@ instance CandlesP OKCoin where
 
 instance OrderBookP OKCoin where
     type OrderBookT OKCoin = OrderBook
-    orderBook' _ = apiReq "depth.do" []
+    orderBook = apiReq "depth.do" []
 
 ---
 --- TradeHistory
@@ -70,7 +66,7 @@ instance OrderBookP OKCoin where
 
 instance TradeHistoryP OKCoin where
     type TradeT OKCoin = Trade
-    tradeHistory' _ = apiReq "trades.do" []
+    tradeHistory = apiReq "trades.do" []
 
 ---
 --- Spot
@@ -82,37 +78,37 @@ instance SpotP OKCoin where
     type SpotOrderAmountT OKCoin = Double
     type SpotOrderT OKCoin = Order
     type SpotOrderIDT OKCoin = String
-    spotBalances' _ = do
+    spotBalances = do
         (OKBalances bx) <- apiReqAuth "userinfo.do" []
         cur <- getBalance ocCurrencySymbol bx
         com <- getBalance ocCommoditySymbol bx
         return $ Balances cur com
-    currentSpotOrders' _ = do
-        sym <- viewStdM ocSymbol
+    currentSpotOrders = do
+        sym <- viewTradeM ocSymbol
         (Orders ox) <- apiReqAuth "order_history.do" [("symbol", sym), ("status", "0"), ("current_page", "0"), ("page_length", "200")]
         return ox
-    placeLimitSpotOrder' _ typ vol price = do
-        sym <- viewStdM ocSymbol
+    placeLimitSpotOrder typ vol price = do
+        sym <- viewTradeM ocSymbol
         (OrderResponse oid) <- apiReqAuth "trade.do" [("symbol", sym), ("type", otyp $ typ), ("price", encNum $ price), ("amount", encNum $ vol)]
         return oid
         where
         otyp BID = "buy"
         otyp ASK = "sell"
-    placeMarketSpotOrder' _ BID amount = do
-        sym <- viewStdM ocSymbol
+    placeMarketSpotOrder BID amount = do
+        sym <- viewTradeM ocSymbol
         (OrderResponse oid) <- apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("price", encNum amount)]
         return oid
-    placeMarketSpotOrder' _ ASK amount = do
-        sym <- viewStdM ocSymbol
+    placeMarketSpotOrder ASK amount = do
+        sym <- viewTradeM ocSymbol
         (OrderResponse oid) <- apiReqAuth "trade.do" [("symbol", sym), ("type", "buy_market"), ("amount", encNum amount)]
         return oid
-    cancelSpotOrder' _ oid = do
-        sym <- viewStdM ocSymbol
+    cancelSpotOrder oid = do
+        sym <- viewTradeM ocSymbol
         apiReqAuth "cancel_order.do" [("symbol", sym), ("order_id", oid)]
 
-getBalance :: Lens OKCoin OKCoin String String -> [(String, Double)] -> StdM OKCoin Double
+getBalance :: Lens OKCoin OKCoin String String -> [(String, Double)] -> TradeM OKCoin Double
 getBalance lens bx = do
-    csym <- viewStdM lens
+    csym <- viewTradeM lens
     let mv = M.lookup csym $ M.fromList bx
     maybe (return 0.0) (return) mv
 
@@ -120,30 +116,30 @@ getBalance lens bx = do
 --- Utility
 ---
 
-apiReq :: FromJSON r => String -> [(String, String)] -> StdM OKCoin r
+apiReq :: FromJSON r => String -> [(String, String)] -> TradeM OKCoin r
 apiReq endpoint params = do
-    baseURL <- viewStdM ocBaseURL
-    sym <- viewStdM ocSymbol
-    key <- viewStdM ocApiKey
+    baseURL <- viewTradeM ocBaseURL
+    sym <- viewTradeM ocSymbol
+    key <- viewTradeM ocApiKey
     let qstr = mconcat . intersperse "&" . fmap toParam . sortOn fst . M.toList . set (at "api_key") (Just key) . set (at "symbol") (Just sym) . M.fromList $ params
     let url = baseURL ++ endpoint ++ "?" ++ qstr
     req <- buildReq url "GET" [] noBody
     httpJSON req
 
-apiReqAuth :: FromJSON r => String -> [(String, String)] -> StdM OKCoin r
+apiReqAuth :: FromJSON r => String -> [(String, String)] -> TradeM OKCoin r
 apiReqAuth endpoint params = do
-    baseURL <- viewStdM ocBaseURL
-    key <- viewStdM ocApiKey
+    baseURL <- viewTradeM ocBaseURL
+    key <- viewTradeM ocApiKey
     let px = sortOn fst . M.toList . set (at "api_key") (Just key) . M.fromList $ params
     sig <- reqSig px
     let body = mconcat . intersperse "&" . fmap toParam $ px ++ [("sign", sig)]
     req <- buildReq (baseURL ++ endpoint) "POST" [("Content-Type", "application/x-www-form-urlencoded")] (Just body)
     httpJSON req
 
-reqSig :: [(String, String)] -> StdM OKCoin String
+reqSig :: [(String, String)] -> TradeM OKCoin String
 reqSig px = do
-    sym <- viewStdM ocSymbol
-    sec <- viewStdM ocApiSecret
+    sym <- viewTradeM ocSymbol
+    sec <- viewTradeM ocApiSecret
     let qstr = mconcat . intersperse "&" . fmap toParam . sortOn fst $ px
     let sig = fmap toUpper . B.unpack . B16.encode . hash . B.pack $ qstr ++ "&secret_key=" ++ sec
     return sig

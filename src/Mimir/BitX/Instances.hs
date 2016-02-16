@@ -2,7 +2,7 @@
 
 module Mimir.BitX.Instances() where
 
-import Mimir.Std.Types
+import Mimir.Types
 import Mimir.BitX.Types
 
 import Control.Applicative

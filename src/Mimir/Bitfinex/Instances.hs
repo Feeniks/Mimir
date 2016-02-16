@@ -2,7 +2,7 @@
 
 module Mimir.Bitfinex.Instances() where
 
-import Mimir.Std.Types
+import Mimir.Types
 import Mimir.Bitfinex.Types
 
 import Control.Applicative

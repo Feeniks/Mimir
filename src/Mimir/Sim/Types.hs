@@ -2,7 +2,7 @@
 
 module Mimir.Sim.Types where
 
-import Mimir.Std.Types
+import Mimir.Types
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM.TVar (TVar)
