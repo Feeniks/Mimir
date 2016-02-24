@@ -63,4 +63,4 @@ test-suite mimir-test
 
 source-repository head
   type:     git
-  location: https://github.com/feeniks/mimir
+  location: https://github.com/ralphmorton/mimir
