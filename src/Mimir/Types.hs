@@ -18,23 +18,18 @@ class HasExchange e r where
 class Exchange e where
     type ExchangeM e = (m :: * -> *) | m -> e
 
-data Cmd e a where
-    ExC :: ExchangeM e a -> Cmd e a
-    LogC :: String -> Cmd e ()
-    ErrC :: String -> Cmd e a
-
 class Exchange e => TickerP e where
     type TickerT e :: *
-    ticker' :: ExchangeM e (TickerT e)
+    ticker :: ExchangeM e (TickerT e)
 
 class Exchange e => SpotP e where
     type SpotBalancesT e :: *
     type SpotOrderT e :: *
     type SpotOrderIDT e :: *
-    spotBalances' :: ExchangeM e (SpotBalancesT e)
-    currentSpotOrders' :: ExchangeM e [SpotOrderT e]
-    placeSpotOrder' :: SpotOrderT e -> ExchangeM e (SpotOrderIDT e)
-    cancelSpotOrder' :: SpotOrderIDT e -> ExchangeM e ()
+    spotBalances :: ExchangeM e (SpotBalancesT e)
+    currentSpotOrders :: ExchangeM e [SpotOrderT e]
+    placeSpotOrder :: SpotOrderT e -> ExchangeM e (SpotOrderIDT e)
+    cancelSpotOrder :: SpotOrderIDT e -> ExchangeM e ()
 
 type TradeM e = ReaderT (Ctx e) (ExceptT TradeError IO)
 

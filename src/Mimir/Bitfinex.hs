@@ -33,21 +33,21 @@ instance Exchange Bitfinex where
 
 instance TickerP Bitfinex where
     type TickerT Bitfinex = Ticker
-    ticker' = publicApi =<< (("pubticker/"<>) <$> view (exchange . bfSymbol))
+    ticker = publicApi =<< (("pubticker/"<>) <$> view (exchange . bfSymbol))
 
 instance SpotP Bitfinex where
     type SpotBalancesT Bitfinex = Balances
     type SpotOrderT Bitfinex = Order
     type SpotOrderIDT Bitfinex = Int
-    spotBalances' = do
+    spotBalances = do
         curSym <- view $ exchange . bfCurrencySymbol
         comSym <- view $ exchange . bfCommoditySymbol
         toBalances curSym comSym <$> authApi "balances" (Nothing :: Maybe ())
-    currentSpotOrders' = authApi "orders" (Nothing :: Maybe ())
-    placeSpotOrder' o = do
+    currentSpotOrders = authApi "orders" (Nothing :: Maybe ())
+    placeSpotOrder o = do
         sym <- view (exchange . bfSymbol)
         view oID <$> authApi "order/new" (Just $ encodeOrder sym o)
-    cancelSpotOrder' oid = do
+    cancelSpotOrder oid = do
         _ <- authApi "order/cancel" . Just $ object ["order_id" .= oid] :: TradeM Bitfinex Value
         return ()
 
