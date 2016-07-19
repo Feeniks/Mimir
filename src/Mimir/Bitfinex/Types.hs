@@ -6,11 +6,9 @@ import Mimir.Types
 
 import Control.Concurrent.STM.TVar (TVar)
 import Control.Lens.TH
-import Network.HTTP.Conduit (Manager)
 
 data Bitfinex = Bitfinex {
     _bfNonce :: TVar Int,
-    _bfManager :: Manager,
     _bfBaseURL :: String,
     _bfVersionCode :: String,
     _bfApiKey :: String,
